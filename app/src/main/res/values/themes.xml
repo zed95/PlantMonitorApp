@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <style name="Theme.PlantMonitorApp" parent="android:Theme.Material.Light.NoActionBar" >
+
+    <!-- Splash screen customization -->
+    <item name="android:windowSplashScreenBackground">@color/splash_logo_background</item>
+    <item name="android:windowSplashScreenAnimatedIcon">@mipmap/splash_logo_round</item>
+    <item name="android:windowSplashScreenAnimationDuration">2000</item> <!-- ms -->
+    </style>
+</resources>
