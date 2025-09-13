@@ -3,6 +3,7 @@ package com.example.testproject
 import java.nio.ByteBuffer
 
 const val SOP: Byte = 0x7E    // Start of packet identifier
+const val EOP: Byte = SOP     // End of packet identifier
 const val SOP_ESCAPE: Byte = 0x7D
 const val SOP_STUFF: Byte  = 0x5E
 const val ESCAPE_STUFF: Byte = 0x5D
@@ -20,6 +21,7 @@ const val ERR_ESCAPE_AT_END: Byte =  -4
 fun msgConnectEsp32ToWifi(ssid: String, password: String): ByteArray
 {
     val msg = mutableListOf<Byte>()
+    val stuffedMsg = mutableListOf<Byte>()
     val numSsidLenBytes = Int.SIZE_BYTES
     val nunPasswordLenBytes = Int.SIZE_BYTES
     val numChecksumLenBytes = Byte.SIZE_BYTES
@@ -28,15 +30,24 @@ fun msgConnectEsp32ToWifi(ssid: String, password: String): ByteArray
     val ssidSizeBytes = ByteBuffer.allocate(4).putInt(ssid.length).array().toList()
     val passwordSizeBytes = ByteBuffer.allocate(4).putInt(password.length).array().toList()
     val payloadSizeBytes = ByteBuffer.allocate(4).putInt(payloadSize).array().toList()
+    var checksum: Byte = 0
 
-    msg.add(SOP)
+
     msg.add(wifiConnect)
     msg.addAll(payloadSizeBytes)
     msg.addAll(ssidSizeBytes)
     msg.addAll(passwordSizeBytes)
     msg.addAll(ssid.toByteArray().toList())
     msg.addAll(password.toByteArray().toList())
-    msg.add(testChecksum)
+    // get checksum for header and payload bytes and add to packet
+    checksum = calcChecksum(msg.toByteArray(), msg.size)
+    msg.add(checksum)
+
+    // stuff ID, Payload, Checksum
+    stuffedMsg.addAll(stuffPacket(msg.toByteArray(), msg.size).toList())
+    // add SOP and EOP
+    stuffedMsg.add(0, SOP) // insert SOP at beginning of list
+    stuffedMsg.add(EOP) // add end of packet identifier
 
     return msg.toByteArray()
 }
