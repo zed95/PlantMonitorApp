@@ -24,10 +24,10 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.example.testproject.SOP
-import com.example.testproject.msgConnectEsp32ToWifi
-import com.example.testproject.msgRequestWifiConnectSts
-import com.example.testproject.wifiConnectSts
+import com.example.plantmonitorapp.SOP
+import com.example.plantmonitorapp.msgConnectEsp32ToWifi
+import com.example.plantmonitorapp.msgRequestWifiConnectSts
+import com.example.plantmonitorapp.wifiConnectSts
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay

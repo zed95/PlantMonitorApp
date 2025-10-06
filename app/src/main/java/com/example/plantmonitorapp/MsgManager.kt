@@ -1,4 +1,4 @@
-package com.example.testproject
+package com.example.plantmonitorapp
 
 import java.nio.ByteBuffer
 
@@ -32,7 +32,6 @@ fun msgConnectEsp32ToWifi(ssid: String, password: String): ByteArray
     val payloadSizeBytes = ByteBuffer.allocate(4).putInt(payloadSize).array().toList()
     var checksum: Byte = 0
 
-
     msg.add(wifiConnect)
     msg.addAll(payloadSizeBytes)
     msg.addAll(ssidSizeBytes)
@@ -49,7 +48,7 @@ fun msgConnectEsp32ToWifi(ssid: String, password: String): ByteArray
     stuffedMsg.add(0, SOP) // insert SOP at beginning of list
     stuffedMsg.add(EOP) // add end of packet identifier
 
-    return msg.toByteArray()
+    return stuffedMsg.toByteArray()
 }
 
 fun msgRequestWifiConnectSts(): ByteArray
@@ -58,13 +57,22 @@ fun msgRequestWifiConnectSts(): ByteArray
     val numChecksumLenBytes = Byte.SIZE_BYTES
     val payloadSize =  numChecksumLenBytes
     val payloadSizeBytes = ByteBuffer.allocate(4).putInt(payloadSize).array().toList()
+    val stuffedMsg = mutableListOf<Byte>()
+    var checksum: Byte = 0
 
-    msg.add(SOP)
     msg.add(wifiConnectSts)
     msg.addAll(payloadSizeBytes)
-    msg.add(testChecksum)
+    // get checksum for header and payload bytes and add to packet
+    checksum = calcChecksum(msg.toByteArray(), msg.size)
+    msg.add(checksum)
 
-    return msg.toByteArray()
+    // stuff ID, Payload, Checksum
+    stuffedMsg.addAll(stuffPacket(msg.toByteArray(), msg.size).toList())
+    // add SOP and EOP
+    stuffedMsg.add(0, SOP) // insert SOP at beginning of list
+    stuffedMsg.add(EOP) // add end of packet identifier
+
+    return stuffedMsg.toByteArray()
 }
 
 fun bytesToInt(bytes: ByteArray, offset: Int): Int
