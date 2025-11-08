@@ -24,10 +24,14 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.example.plantmonitorapp.EOP
+import com.example.plantmonitorapp.REQUEST_RSP_ESP32_WIFI_STS
+import com.example.plantmonitorapp.RemSopEop
 import com.example.plantmonitorapp.SOP
+import com.example.plantmonitorapp.calcChecksum
 import com.example.plantmonitorapp.msgConnectEsp32ToWifi
 import com.example.plantmonitorapp.msgRequestWifiConnectSts
-import com.example.plantmonitorapp.wifiConnectSts
+import com.example.plantmonitorapp.unstuffPacket
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -50,6 +54,7 @@ enum class xDevCommPacketReadState {
     WAIT_FOR_SOP,
     READ_HEADER,
     READ_PAYLOAD,
+    WAIT_EOP,
     VALIDATE
 }
 
@@ -386,21 +391,21 @@ class BluetoothViewModel(context: Context) : ViewModel() {
     // done as if the size fo the response is variable.
     suspend fun getDeviceWifiConnectSts(): Boolean
     {
-        val buffer = ByteArray(512)
+        var buffer = ByteArray(512)
         var connected = false
 
-        if(btSend(msgRequestWifiConnectSts()))
-        {
+//        if(btSend(msgRequestWifiConnectSts()))
+//        {
             delay(500)
             if(readPacket(buffer))
             {
                 // received packet is connect sts and sts is connected
-                if(buffer[1] == wifiConnectSts && buffer[6] == 1.toByte())
+                if(buffer[1] == REQUEST_RSP_ESP32_WIFI_STS && buffer[6] == 1.toByte())
                 {
                     connected = true
                 }
             }
-        }
+//        }
 
         return connected
     }
@@ -448,13 +453,39 @@ class BluetoothViewModel(context: Context) : ViewModel() {
                 {
                     if((btManager.readBytes(buffer, bufIdx, payloadSize) == payloadSize))
                     {
-                        packetReadState = xDevCommPacketReadState.VALIDATE
+                        bufIdx += payloadSize
+                        packetReadState = xDevCommPacketReadState.WAIT_EOP
+                    }
+                }
+                xDevCommPacketReadState.WAIT_EOP ->
+                {
+                    if((btManager.readBytes(buffer, bufIdx, 1) == 1))
+                    {
+                        // proceed to next stage when SOP is found
+                        if(buffer[bufIdx] == EOP)
+                        {
+                            bufIdx++
+                            packetReadState = xDevCommPacketReadState.VALIDATE
+                        }
                     }
                 }
                 xDevCommPacketReadState.VALIDATE ->
                 {
-                    // do checksum recalculation to check for corruption
-                    readComplete = true
+                    // remove SOP and EOP and update size index
+                    RemSopEop(buffer)
+                    bufIdx = bufIdx - 2
+                    // unstuff packet and assign unstuffed packet length to bufIdx
+                    bufIdx = unstuffPacket(buffer, bufIdx)
+
+                    // after unstuffing bufIdx (size of packet indicator) also carries error coding so check must be made
+                    if(bufIdx >= 0)
+                    {
+                        if(calcChecksum(buffer, bufIdx) == 0.toByte())
+                        {
+                            // do checksum recalculation to check for corruption
+                            readComplete = true
+                        }
+                    }
                 }
             }
         }

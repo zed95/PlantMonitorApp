@@ -10,7 +10,7 @@ const val ESCAPE_STUFF: Byte = 0x5D
 const val  NON_SOP_BYTE: Byte = 0x7E
 const val NON_ESCAPE_BYTE: Byte = 0x7D
 const val wifiConnect: Byte = 0x01    // connect to wifi command identifier
-const val wifiConnectSts: Byte = 0x02
+const val REQUEST_RSP_ESP32_WIFI_STS: Byte = 0x03
 const val testChecksum: Byte = 0x11
 
 // destuffing error codes
@@ -128,10 +128,11 @@ fun stuffPacket(packet: ByteArray, len: Int): ByteArray
     return tmpBuf.toByteArray()
 }
 
-fun unstuffPacket(packet: ByteArray, len: Int): Pair<ByteArray?, Byte>
+fun unstuffPacket(packet: ByteArray, len: Int):  Int
 {
     val tmpBuf = mutableListOf<Byte>()
     var errorCode: Byte = 0
+    var newLen = 0
     var i = 0
 
     while((i < len) && (errorCode == 0.toByte()))
@@ -170,6 +171,35 @@ fun unstuffPacket(packet: ByteArray, len: Int): Pair<ByteArray?, Byte>
         i++
     }
 
-    return if (errorCode == 0.toByte()) Pair(tmpBuf.toByteArray(), 0)
-    else Pair(null, errorCode)
+    if(errorCode == 0.toByte())
+    {
+        for(x in 0 .. tmpBuf.lastIndex)
+        {
+            packet[x] = tmpBuf[x]
+        }
+
+        newLen = tmpBuf.size
+    }
+    else
+    {
+        newLen = errorCode.toInt()
+    }
+
+    return newLen
+}
+
+fun RemSopEop(packet: ByteArray)
+{
+    val tmpBuf = mutableListOf<Byte>()
+
+    // remove SOP and EOP
+    tmpBuf.addAll(packet.toList())
+    tmpBuf.removeAt(0)
+    tmpBuf.removeAt(tmpBuf.lastIndex)
+
+    // reorganise the array with SOP and EOP removed
+    for(x in 0 .. tmpBuf.lastIndex)
+    {
+        packet[x] = tmpBuf[x]
+    }
 }
