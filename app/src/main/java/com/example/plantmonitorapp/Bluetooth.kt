@@ -396,15 +396,16 @@ class BluetoothViewModel(context: Context) : ViewModel() {
 
 //        if(btSend(msgRequestWifiConnectSts()))
 //        {
-            delay(500)
-            if(readPacket(buffer))
+        delay(500)
+        if(readPacket(buffer))
+        {
+            // received packet is connect sts and sts is connected (== 7)
+            // packet has SOP/EOP removed and has been ustuffed at this point
+            if(buffer[0] == REQUEST_RSP_ESP32_WIFI_STS && buffer[5] == 7.toByte())
             {
-                // received packet is connect sts and sts is connected
-                if(buffer[1] == REQUEST_RSP_ESP32_WIFI_STS && buffer[6] == 1.toByte())
-                {
-                    connected = true
-                }
+                connected = true
             }
+        }
 //        }
 
         return connected

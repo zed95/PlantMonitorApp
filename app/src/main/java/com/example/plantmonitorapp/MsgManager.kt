@@ -10,6 +10,7 @@ const val ESCAPE_STUFF: Byte = 0x5D
 const val  NON_SOP_BYTE: Byte = 0x7E
 const val NON_ESCAPE_BYTE: Byte = 0x7D
 const val wifiConnect: Byte = 0x01    // connect to wifi command identifier
+const val REQUEST_ESP32_WIFI_STS: Byte = 0x02
 const val REQUEST_RSP_ESP32_WIFI_STS: Byte = 0x03
 const val testChecksum: Byte = 0x11
 
@@ -60,7 +61,7 @@ fun msgRequestWifiConnectSts(): ByteArray
     val stuffedMsg = mutableListOf<Byte>()
     var checksum: Byte = 0
 
-    msg.add(wifiConnectSts)
+    msg.add(REQUEST_ESP32_WIFI_STS)
     msg.addAll(payloadSizeBytes)
     // get checksum for header and payload bytes and add to packet
     checksum = calcChecksum(msg.toByteArray(), msg.size)
@@ -99,6 +100,7 @@ fun calcChecksum(data: ByteArray, len: Int): Byte {
     }
 
     val checksum = ((sum.inv() + 1) and 0xFF)
+    println("checksum: $checksum")
     return checksum.toByte()
 }
 

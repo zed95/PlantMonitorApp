@@ -3,6 +3,7 @@ import BluetoothViewModel
 import BluetoothViewModelFactory
 import android.Manifest
 import android.annotation.SuppressLint
+import android.content.Context
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -72,6 +73,8 @@ enum class DeviceSetupState {
     RemoteDevWifiConnectFailed,
 }
 
+lateinit var appContext: Context
+
 
 class MainActivity : ComponentActivity() {
 
@@ -90,6 +93,8 @@ class MainActivity : ComponentActivity() {
             MyScreen(btViewModel, pairingLauncher)
 
             }
+
+            appContext = this
         }
     }
 
