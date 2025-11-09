@@ -4,6 +4,7 @@ import BluetoothViewModelFactory
 import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context
+import android.net.nsd.NsdServiceInfo
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -17,13 +18,22 @@ import androidx.annotation.RequiresPermission
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.AlertDialog
@@ -54,11 +64,14 @@ import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.IconButton
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.sp
 import com.example.plantmonitorapp.ui.theme.PlantMonitorAppTheme
 
 enum class DeviceSetupState {
@@ -213,6 +226,7 @@ fun SetupNewDevice(viewModel: BluetoothViewModel, modifier: Modifier,
                 dialogTitle = "Device Connected",
                 dialogText = "Device successfully connected to the WiFi network",
                 icon = Icons.Default.CheckCircle)
+                initNsdDiscoveryListener(context)
         }
 
     }
@@ -516,7 +530,7 @@ fun MyScreen(viewModel: BluetoothViewModel, pairingLauncher: ActivityResultLaunc
         contentAlignment = Alignment.Center
     ) {
         MyButton(Modifier.align(Alignment.BottomStart))
-
+        DeviceList()
         SetupNewDevice(viewModel, Modifier.align(Alignment.BottomEnd), pairingLauncher)
     }
 
@@ -528,6 +542,35 @@ fun Greeting(name: String, modifier: Modifier = Modifier) {
         text = "Hello $name!",
         modifier = modifier
     )
+}
+
+@Composable
+fun DeviceList()
+{
+    val listState = rememberLazyListState()
+    var selectedItem by remember{ mutableStateOf<NsdServiceInfo?>(null) }
+
+    LazyColumn(state = listState,
+               contentPadding = PaddingValues(top = 150.dp))
+    {
+        items(items = discoveredDevices)
+        { item ->
+            Text(
+                text = item.serviceName,
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+                    .padding(vertical = 24.dp)
+                    .selectable(selected = (selectedItem?.serviceName == item.serviceName), onClick = {selectedItem = item})
+
+            )
+        }
+
+        // selectedItem holds the item string that was selected. If I work backwards I can get its index in the list
+        // if I pass the actual List of all available devices advertising plant monitor service I can then display
+        // the list of all the devices select one and connect to it and start displaying the information.
+    }
 }
 
 @Preview(showBackground = true)
