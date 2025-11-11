@@ -15,7 +15,9 @@ import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.annotation.RequiresPermission
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,7 +26,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -32,6 +36,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -63,10 +68,18 @@ import androidx.compose.material.icons.filled.Dangerous
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material3.ButtonColors
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ButtonElevation
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ElevatedButton
+import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.IconButton
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -103,6 +116,7 @@ class MainActivity : ComponentActivity() {
         initLauncher(this)
         setContent {
             PlantMonitorAppTheme {
+                initNsdDiscoveryListener(LocalContext.current)
             MyScreen(btViewModel, pairingLauncher)
 
             }
@@ -131,9 +145,9 @@ fun printMsg(str: String)
 }
 
 @Composable
-fun MyButton(modifier: Modifier)
+fun MyButton()
 {
-    Button(onClick = {printMsg("Button Clicked!")}, modifier = modifier)
+    Button(onClick = {printMsg("Button Clicked!")})
     {
         Text("Click Me")
     }
@@ -141,7 +155,7 @@ fun MyButton(modifier: Modifier)
 
 @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
 @Composable
-fun SetupNewDevice(viewModel: BluetoothViewModel, modifier: Modifier,
+fun SetupNewDevice(viewModel: BluetoothViewModel,
                     pairingLauncher: ActivityResultLauncher<IntentSenderRequest>)
 {
     val context = LocalContext.current
@@ -226,12 +240,14 @@ fun SetupNewDevice(viewModel: BluetoothViewModel, modifier: Modifier,
                 dialogTitle = "Device Connected",
                 dialogText = "Device successfully connected to the WiFi network",
                 icon = Icons.Default.CheckCircle)
-                initNsdDiscoveryListener(context)
+//                initNsdDiscoveryListener(context)
         }
 
     }
 
-    Button(
+    ElevatedButton(
+        colors = ButtonDefaults.elevatedButtonColors(containerColor = Color(0xFFCFD2CF), contentColor = Color.Black),
+        elevation = ButtonDefaults.buttonElevation(10.dp),
         onClick = {
             if(setupState == DeviceSetupState.Idle)
             {
@@ -239,7 +255,7 @@ fun SetupNewDevice(viewModel: BluetoothViewModel, modifier: Modifier,
             }
                   },
 
-        modifier = modifier)
+        )
     {
         Text("Add Plant Monitor")
     }
@@ -523,15 +539,67 @@ fun ConnectingDialog(
 @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
 fun MyScreen(viewModel: BluetoothViewModel, pairingLauncher: ActivityResultLauncher<IntentSenderRequest>) {
     // This places the button in the center of the screen
-    Box(
+    Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Red),
-        contentAlignment = Alignment.Center
+            .background(Color(0xFF208F38))
     ) {
-        MyButton(Modifier.align(Alignment.BottomStart))
-        DeviceList()
-        SetupNewDevice(viewModel, Modifier.align(Alignment.BottomEnd), pairingLauncher)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 40.dp),   // optional spacing from the top
+            contentAlignment = Alignment.Center
+        )
+        {
+            Image(
+                painter = painterResource(id = R.drawable.splash_logo),
+                contentDescription = "App logo",
+                modifier = Modifier
+                    .size(240.dp)
+                    .padding(top = 16.dp),
+            )
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth(),   // optional spacing from the top
+            contentAlignment = Alignment.Center
+        )
+        {
+            // Label
+            Text(
+                text = "Available Devices",
+                fontSize = 20.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = Color(0xFFE4B848),
+            )
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth(),   // optional spacing from the top
+            contentAlignment = Alignment.Center
+        )
+        {
+            ElevatedCard(
+                shape = RoundedCornerShape(16.dp),
+                elevation = CardDefaults.cardElevation(10.dp),
+                modifier = Modifier
+                    .fillMaxWidth(0.9f)
+                    .heightIn(max = 400.dp) // Maximum height
+            )
+            {
+                DeviceList()
+            }
+        }
+        Row(modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween)
+        {
+            MyButton()
+            SetupNewDevice(viewModel, pairingLauncher)
+        }
     }
 
 }
@@ -551,7 +619,13 @@ fun DeviceList()
     var selectedItem by remember{ mutableStateOf<NsdServiceInfo?>(null) }
 
     LazyColumn(state = listState,
-               contentPadding = PaddingValues(top = 150.dp))
+               modifier = Modifier.fillMaxWidth().
+               height(150.dp).
+               clip(RoundedCornerShape(10.dp)).
+               background(Color(0xFFCFD2CF))
+    )
+
+
     {
         items(items = discoveredDevices)
         { item ->
