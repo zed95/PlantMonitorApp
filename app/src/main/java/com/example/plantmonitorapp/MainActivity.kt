@@ -18,6 +18,8 @@ import androidx.annotation.RequiresPermission
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -40,6 +42,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -68,13 +71,20 @@ import androidx.compose.material.icons.filled.Dangerous
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.ripple.RippleAlpha
+import androidx.compose.material.ripple.rememberRipple
 import androidx.compose.material3.ButtonColors
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ButtonElevation
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ElevatedButton
 import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FloatingActionButtonDefaults
+import androidx.compose.material3.FloatingActionButtonElevation
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
@@ -142,15 +152,6 @@ class MainActivity : ComponentActivity() {
 fun printMsg(str: String)
 {
     println(str)
-}
-
-@Composable
-fun MyButton()
-{
-    Button(onClick = {printMsg("Button Clicked!")})
-    {
-        Text("Click Me")
-    }
 }
 
 @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
@@ -245,20 +246,33 @@ fun SetupNewDevice(viewModel: BluetoothViewModel,
 
     }
 
-    ElevatedButton(
-        colors = ButtonDefaults.elevatedButtonColors(containerColor = Color(0xFFCFD2CF), contentColor = Color.Black),
-        elevation = ButtonDefaults.buttonElevation(10.dp),
+//    ElevatedButton(
+//        colors = ButtonDefaults.elevatedButtonColors(containerColor = Color(0xFFCFD2CF), contentColor = Color.Black),
+//        elevation = ButtonDefaults.buttonElevation(10.dp),
+//        onClick = {
+//            if(setupState == DeviceSetupState.Idle)
+//            {
+//                setupState = DeviceSetupState.StartPairing
+//            }
+//                  },
+//
+//        )
+//    {
+//        Text("Add Plant Monitor")
+//    }
+
+    ExtendedFloatingActionButton(
+        icon = { Icon(Icons.Filled.Add, "Extended floating action button.") },
+        elevation = FloatingActionButtonDefaults.elevation(10.dp),
+        containerColor = Color(0xFFCFD2CF),
+        text = { Text(text = "New Device") },
         onClick = {
             if(setupState == DeviceSetupState.Idle)
             {
                 setupState = DeviceSetupState.StartPairing
             }
-                  },
-
-        )
-    {
-        Text("Add Plant Monitor")
-    }
+        },
+    )
 
     if (isPairing) {
         // Loading spinner overlay
@@ -542,7 +556,7 @@ fun MyScreen(viewModel: BluetoothViewModel, pairingLauncher: ActivityResultLaunc
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF208F38))
+            .background(Color(0xFF04631A))
     ) {
         Box(
             modifier = Modifier
@@ -552,7 +566,7 @@ fun MyScreen(viewModel: BluetoothViewModel, pairingLauncher: ActivityResultLaunc
         )
         {
             Image(
-                painter = painterResource(id = R.drawable.splash_logo),
+                painter = painterResource(id = R.drawable.start_screen_logo),
                 contentDescription = "App logo",
                 modifier = Modifier
                     .size(240.dp)
@@ -582,7 +596,7 @@ fun MyScreen(viewModel: BluetoothViewModel, pairingLauncher: ActivityResultLaunc
         )
         {
             ElevatedCard(
-                shape = RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(10.dp),
                 elevation = CardDefaults.cardElevation(10.dp),
                 modifier = Modifier
                     .fillMaxWidth(0.9f)
@@ -594,10 +608,9 @@ fun MyScreen(viewModel: BluetoothViewModel, pairingLauncher: ActivityResultLaunc
         }
         Row(modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween)
+            .padding(top = 16.dp),
+            horizontalArrangement = Arrangement.Center)
         {
-            MyButton()
             SetupNewDevice(viewModel, pairingLauncher)
         }
     }
@@ -620,9 +633,9 @@ fun DeviceList()
 
     LazyColumn(state = listState,
                modifier = Modifier.fillMaxWidth().
-               height(150.dp).
+               height(300.dp).
                clip(RoundedCornerShape(10.dp)).
-               background(Color(0xFFCFD2CF))
+               background(Color(0xFF067A22))
     )
 
 
@@ -631,14 +644,20 @@ fun DeviceList()
         { item ->
             Text(
                 text = item.serviceName,
+                color = Color(0xFFCFD2CF),
                 fontSize = 24.sp,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth()
-                    .padding(vertical = 24.dp)
+                    .padding(vertical = 5.dp)
                     .selectable(selected = (selectedItem?.serviceName == item.serviceName), onClick = {selectedItem = item})
-
+                    .clickable(            onClick = {},
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = ripple(bounded = true, color = Color.Black)
+                    )
             )
+
+            HorizontalDivider(modifier = Modifier.padding(horizontal = 20.dp), thickness = 1.dp, color = Color(0xFFE4B848))
         }
 
         // selectedItem holds the item string that was selected. If I work backwards I can get its index in the list
