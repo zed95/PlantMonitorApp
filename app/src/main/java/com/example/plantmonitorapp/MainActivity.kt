@@ -42,6 +42,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.ArrowRight
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.AlertDialog
@@ -642,20 +644,37 @@ fun DeviceList()
     {
         items(items = discoveredDevices)
         { item ->
-            Text(
-                text = item.serviceName,
-                color = Color(0xFFCFD2CF),
-                fontSize = 24.sp,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth()
-                    .padding(vertical = 5.dp)
-                    .selectable(selected = (selectedItem?.serviceName == item.serviceName), onClick = {selectedItem = item})
-                    .clickable(            onClick = {},
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = ripple(bounded = true, color = Color.Black)
-                    )
-            )
+
+            Row(modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 16.dp, start = 20.dp, end = 10.dp)
+                .selectable(selected = (selectedItem?.serviceName == item.serviceName), onClick = {selectedItem = item})
+                .clickable(            onClick = {selectedItem = item
+                    println("Selected Item: ${selectedItem?.serviceName}")},
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = ripple(bounded = true, color = Color.Black)
+                ),
+                horizontalArrangement = Arrangement.Absolute.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,)
+            {
+                Text(
+                    text = item.serviceName,
+                    color = Color(0xFFCFD2CF),
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(vertical = 5.dp)
+                )
+
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowRight,
+                    contentDescription = "Arrow",
+                    tint = Color(0xFFCFD2CF),
+                    modifier = Modifier
+                        .size(40.dp)
+                        .padding(start = 4.dp)
+                )
+            }
 
             HorizontalDivider(modifier = Modifier.padding(horizontal = 20.dp), thickness = 1.dp, color = Color(0xFFE4B848))
         }
