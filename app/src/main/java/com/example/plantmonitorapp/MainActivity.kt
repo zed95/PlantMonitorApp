@@ -15,6 +15,8 @@ import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.annotation.RequiresPermission
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -97,6 +99,16 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.sp
+import androidx.navigation.NavHostController
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
+import com.example.plantmonitorapp.ui.theme.BackgroundGreen
+import com.example.plantmonitorapp.ui.theme.BackgroundGrey
+import com.example.plantmonitorapp.ui.theme.CustomGold
+import com.example.plantmonitorapp.ui.theme.CustomSilver
+import com.example.plantmonitorapp.ui.theme.ElevatedGreen
+import com.example.plantmonitorapp.ui.theme.ElevatedGrey
 import com.example.plantmonitorapp.ui.theme.PlantMonitorAppTheme
 
 enum class DeviceSetupState {
@@ -266,7 +278,7 @@ fun SetupNewDevice(viewModel: BluetoothViewModel,
     ExtendedFloatingActionButton(
         icon = { Icon(Icons.Filled.Add, "Extended floating action button.") },
         elevation = FloatingActionButtonDefaults.elevation(10.dp),
-        containerColor = Color(0xFFCFD2CF),
+        containerColor = CustomSilver,
         text = { Text(text = "New Device") },
         onClick = {
             if(setupState == DeviceSetupState.Idle)
@@ -554,11 +566,37 @@ fun ConnectingDialog(
 @Composable
 @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
 fun MyScreen(viewModel: BluetoothViewModel, pairingLauncher: ActivityResultLauncher<IntentSenderRequest>) {
+    val navController = rememberNavController()
+
+    NavHost(navController = navController, startDestination = "DeviceSelection",
+        enterTransition = { slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Start, tween(400)) },
+        exitTransition = { slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Start, tween(400)) },
+        popEnterTransition = { slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.End, tween(400)) },
+        popExitTransition = { slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.End, tween(400)) })
+    {
+        composable("DeviceSelection")
+        {
+            DeviceSelectionScreen(viewModel, pairingLauncher, navController)
+        }
+
+        composable("DeviceDashboard")
+        {
+            DeviceDashboard("MyEsp32")
+        }
+    }
+
+}
+@Composable
+@RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
+fun DeviceSelectionScreen(viewModel: BluetoothViewModel,
+                          pairingLauncher: ActivityResultLauncher<IntentSenderRequest>,
+                          navController: NavHostController)
+{
     // This places the button in the center of the screen
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF04631A))
+            .background(BackgroundGrey)
     ) {
         Box(
             modifier = Modifier
@@ -568,7 +606,7 @@ fun MyScreen(viewModel: BluetoothViewModel, pairingLauncher: ActivityResultLaunc
         )
         {
             Image(
-                painter = painterResource(id = R.drawable.start_screen_logo),
+                painter = painterResource(id = R.drawable.start_screen_logo_grey),
                 contentDescription = "App logo",
                 modifier = Modifier
                     .size(240.dp)
@@ -587,7 +625,7 @@ fun MyScreen(viewModel: BluetoothViewModel, pairingLauncher: ActivityResultLaunc
                 text = "Available Devices",
                 fontSize = 20.sp,
                 fontWeight = FontWeight.SemiBold,
-                color = Color(0xFFE4B848),
+                color = CustomGold,
             )
         }
 
@@ -605,7 +643,7 @@ fun MyScreen(viewModel: BluetoothViewModel, pairingLauncher: ActivityResultLaunc
                     .heightIn(max = 400.dp) // Maximum height
             )
             {
-                DeviceList()
+                DeviceList({navController.navigate("DeviceDashboard") })
             }
         }
         Row(modifier = Modifier
@@ -616,19 +654,10 @@ fun MyScreen(viewModel: BluetoothViewModel, pairingLauncher: ActivityResultLaunc
             SetupNewDevice(viewModel, pairingLauncher)
         }
     }
-
 }
 
 @Composable
-fun Greeting(name: String, modifier: Modifier = Modifier) {
-    Text(
-        text = "Hello $name!",
-        modifier = modifier
-    )
-}
-
-@Composable
-fun DeviceList()
+fun DeviceList(onDeviceSelected: (String) -> Unit)
 {
     val listState = rememberLazyListState()
     var selectedItem by remember{ mutableStateOf<NsdServiceInfo?>(null) }
@@ -637,7 +666,7 @@ fun DeviceList()
                modifier = Modifier.fillMaxWidth().
                height(300.dp).
                clip(RoundedCornerShape(10.dp)).
-               background(Color(0xFF067A22))
+               background(ElevatedGrey)
     )
 
 
@@ -650,7 +679,8 @@ fun DeviceList()
                 .padding(top = 16.dp, start = 20.dp, end = 10.dp)
                 .selectable(selected = (selectedItem?.serviceName == item.serviceName), onClick = {selectedItem = item})
                 .clickable(            onClick = {selectedItem = item
-                    println("Selected Item: ${selectedItem?.serviceName}")},
+                    println("Selected Item: ${selectedItem?.serviceName}")
+                    onDeviceSelected(selectedItem!!.serviceName)},
                     interactionSource = remember { MutableInteractionSource() },
                     indication = ripple(bounded = true, color = Color.Black)
                 ),
@@ -659,9 +689,9 @@ fun DeviceList()
             {
                 Text(
                     text = item.serviceName,
-                    color = Color(0xFFCFD2CF),
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Bold,
+                    color = CustomSilver,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.SemiBold,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.padding(vertical = 5.dp)
                 )
@@ -669,26 +699,18 @@ fun DeviceList()
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowRight,
                     contentDescription = "Arrow",
-                    tint = Color(0xFFCFD2CF),
+                    tint = CustomSilver,
                     modifier = Modifier
                         .size(40.dp)
                         .padding(start = 4.dp)
                 )
             }
 
-            HorizontalDivider(modifier = Modifier.padding(horizontal = 20.dp), thickness = 1.dp, color = Color(0xFFE4B848))
+            HorizontalDivider(modifier = Modifier.padding(horizontal = 20.dp), thickness = 1.dp, color = CustomGold)
         }
 
         // selectedItem holds the item string that was selected. If I work backwards I can get its index in the list
         // if I pass the actual List of all available devices advertising plant monitor service I can then display
         // the list of all the devices select one and connect to it and start displaying the information.
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-fun GreetingPreview() {
-    PlantMonitorAppTheme {
-        Greeting("Android")
     }
 }
