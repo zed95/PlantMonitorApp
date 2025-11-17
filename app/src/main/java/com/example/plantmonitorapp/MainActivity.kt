@@ -99,6 +99,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.sp
+import androidx.navigation.NavController
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -110,6 +111,10 @@ import com.example.plantmonitorapp.ui.theme.CustomSilver
 import com.example.plantmonitorapp.ui.theme.ElevatedGreen
 import com.example.plantmonitorapp.ui.theme.ElevatedGrey
 import com.example.plantmonitorapp.ui.theme.PlantMonitorAppTheme
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 enum class DeviceSetupState {
     Idle,
@@ -643,7 +648,7 @@ fun DeviceSelectionScreen(viewModel: BluetoothViewModel,
                     .heightIn(max = 400.dp) // Maximum height
             )
             {
-                DeviceList({navController.navigate("DeviceDashboard") })
+                DeviceList( { devInfo -> ConnectToDevice(navController, devInfo) })
             }
         }
         Row(modifier = Modifier
@@ -656,8 +661,24 @@ fun DeviceSelectionScreen(viewModel: BluetoothViewModel,
     }
 }
 
+fun ConnectToDevice(navController: NavHostController, devInfo: NsdServiceInfo)
+{
+    var connected = false
+    CoroutineScope(Dispatchers.IO).launch()
+    {
+        if(SocketManager.Connect(devInfo.hostAddresses.first().toString(), devInfo.port))
+        {
+            withContext(Dispatchers.Main) {
+                navController.navigate("DeviceDashboard")
+            }
+            SocketManager.startReading()
+        }
+    }
+}
+
+
 @Composable
-fun DeviceList(onDeviceSelected: (String) -> Unit)
+fun DeviceList(onDeviceSelected: (NsdServiceInfo) -> Unit)
 {
     val listState = rememberLazyListState()
     var selectedItem by remember{ mutableStateOf<NsdServiceInfo?>(null) }
@@ -680,7 +701,7 @@ fun DeviceList(onDeviceSelected: (String) -> Unit)
                 .selectable(selected = (selectedItem?.serviceName == item.serviceName), onClick = {selectedItem = item})
                 .clickable(            onClick = {selectedItem = item
                     println("Selected Item: ${selectedItem?.serviceName}")
-                    onDeviceSelected(selectedItem!!.serviceName)},
+                    onDeviceSelected(selectedItem!!)},
                     interactionSource = remember { MutableInteractionSource() },
                     indication = ripple(bounded = true, color = Color.Black)
                 ),
