@@ -38,22 +38,25 @@ import com.example.plantmonitorapp.ui.theme.ElevatedGreen
 import com.example.plantmonitorapp.ui.theme.ElevatedGrey
 
 @Composable
-fun DeviceDashboard(name: String)
+fun DeviceDashboard(serviceViewModel: ServiceViewModel)
 {
     val temp = EnvInfoElement("Temperature", Icons.Filled.Thermostat, Color(0xFFFF7070))
     val hum = EnvInfoElement("Humidity", Icons.Filled.Cloud, Color(0xFF68ADFF))
     val moist = EnvInfoElement("Soil Moisture", Icons.Filled.WaterDrop, Color(0xFF003FFF))
+    val name = serviceViewModel.selectedDevice.serviceName
     // This places the button in the center of the screen
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(BackgroundGrey)
     ) {
-        DeviceDashBaordName(name)
+        DeviceDashBaordName(name!!)
         temp.ElementImplement()
         hum.ElementImplement()
         moist.ElementImplement()
     }
+
+    SocketManager.ConnectToDevice(serviceViewModel.selectedDevice)
 }
 
 @Composable

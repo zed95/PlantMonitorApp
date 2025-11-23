@@ -99,6 +99,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -145,7 +146,7 @@ class MainActivity : ComponentActivity() {
         initLauncher(this)
         setContent {
             PlantMonitorAppTheme {
-                initNsdDiscoveryListener(LocalContext.current)
+
             MyScreen(btViewModel, pairingLauncher)
 
             }
@@ -572,6 +573,8 @@ fun ConnectingDialog(
 @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
 fun MyScreen(viewModel: BluetoothViewModel, pairingLauncher: ActivityResultLauncher<IntentSenderRequest>) {
     val navController = rememberNavController()
+    val serviceViewModel: ServiceViewModel = viewModel()
+    initNsdDiscoveryListener(LocalContext.current, serviceViewModel)
 
     NavHost(navController = navController, startDestination = "DeviceSelection",
         enterTransition = { slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Start, tween(400)) },
@@ -581,12 +584,12 @@ fun MyScreen(viewModel: BluetoothViewModel, pairingLauncher: ActivityResultLaunc
     {
         composable("DeviceSelection")
         {
-            DeviceSelectionScreen(viewModel, pairingLauncher, navController)
+            DeviceSelectionScreen(viewModel, serviceViewModel, pairingLauncher, navController)
         }
 
         composable("DeviceDashboard")
         {
-            DeviceDashboard("MyEsp32")
+            DeviceDashboard(serviceViewModel)
         }
     }
 
@@ -594,6 +597,7 @@ fun MyScreen(viewModel: BluetoothViewModel, pairingLauncher: ActivityResultLaunc
 @Composable
 @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
 fun DeviceSelectionScreen(viewModel: BluetoothViewModel,
+                          serviceViewModel: ServiceViewModel,
                           pairingLauncher: ActivityResultLauncher<IntentSenderRequest>,
                           navController: NavHostController)
 {
@@ -648,7 +652,7 @@ fun DeviceSelectionScreen(viewModel: BluetoothViewModel,
                     .heightIn(max = 400.dp) // Maximum height
             )
             {
-                DeviceList( { devInfo -> ConnectToDevice(navController, devInfo) })
+                DeviceList( serviceViewModel, { navController.navigate("DeviceDashboard") })
             }
         }
         Row(modifier = Modifier
@@ -661,38 +665,81 @@ fun DeviceSelectionScreen(viewModel: BluetoothViewModel,
     }
 }
 
-fun ConnectToDevice(navController: NavHostController, devInfo: NsdServiceInfo)
-{
-    var connected = false
-    CoroutineScope(Dispatchers.IO).launch()
-    {
-        if(SocketManager.Connect(devInfo.hostAddresses.first().toString(), devInfo.port))
-        {
-            withContext(Dispatchers.Main) {
-                navController.navigate("DeviceDashboard")
-            }
-            SocketManager.startReading()
-        }
-    }
-}
 
+//@Composable
+//fun DeviceList(devices: List<NsdServiceInfo>, onDeviceSelected: (NsdServiceInfo) -> Unit)
+//{
+//    val listState = rememberLazyListState()
+//    var selectedItem by remember{ mutableStateOf<NsdServiceInfo?>(null) }
+//
+//    LazyColumn(state = listState,
+//               modifier = Modifier.fillMaxWidth().
+//               height(300.dp).
+//               clip(RoundedCornerShape(10.dp)).
+//               background(ElevatedGrey)
+//    )
+//
+//
+//    {
+//        items(items = devices)
+//        { item ->
+//
+//            Row(modifier = Modifier
+//                .fillMaxWidth()
+//                .padding(top = 16.dp, start = 20.dp, end = 10.dp)
+//                .selectable(selected = (selectedItem?.serviceName == item.serviceName), onClick = {selectedItem = item})
+//                .clickable(            onClick = {selectedItem = item
+//                    println("Selected Item: ${selectedItem?.serviceName}")
+//                    onDeviceSelected(selectedItem!!)},
+//                    interactionSource = remember { MutableInteractionSource() },
+//                    indication = ripple(bounded = true, color = Color.Black)
+//                ),
+//                horizontalArrangement = Arrangement.Absolute.SpaceBetween,
+//                verticalAlignment = Alignment.CenterVertically,)
+//            {
+//                Text(
+//                    text = item.serviceName,
+//                    color = CustomSilver,
+//                    fontSize = 20.sp,
+//                    fontWeight = FontWeight.SemiBold,
+//                    textAlign = TextAlign.Center,
+//                    modifier = Modifier.padding(vertical = 5.dp)
+//                )
+//
+//                Icon(
+//                    imageVector = Icons.AutoMirrored.Filled.ArrowRight,
+//                    contentDescription = "Arrow",
+//                    tint = CustomSilver,
+//                    modifier = Modifier
+//                        .size(40.dp)
+//                        .padding(start = 4.dp)
+//                )
+//            }
+//
+//            HorizontalDivider(modifier = Modifier.padding(horizontal = 20.dp), thickness = 1.dp, color = CustomGold)
+//        }
+//
+//        // selectedItem holds the item string that was selected. If I work backwards I can get its index in the list
+//        // if I pass the actual List of all available devices advertising plant monitor service I can then display
+//        // the list of all the devices select one and connect to it and start displaying the information.
+//    }
+//}
 
 @Composable
-fun DeviceList(onDeviceSelected: (NsdServiceInfo) -> Unit)
+fun DeviceList(viewModel: ServiceViewModel, onDeviceSelected: () -> Unit)
 {
     val listState = rememberLazyListState()
     var selectedItem by remember{ mutableStateOf<NsdServiceInfo?>(null) }
+    val devices = viewModel.discoveredDevices
 
     LazyColumn(state = listState,
-               modifier = Modifier.fillMaxWidth().
-               height(300.dp).
-               clip(RoundedCornerShape(10.dp)).
-               background(ElevatedGrey)
+        modifier = Modifier.fillMaxWidth().
+        height(300.dp).
+        clip(RoundedCornerShape(10.dp)).
+        background(ElevatedGrey)
     )
-
-
     {
-        items(items = discoveredDevices)
+        items(items = devices)
         { item ->
 
             Row(modifier = Modifier
@@ -701,7 +748,8 @@ fun DeviceList(onDeviceSelected: (NsdServiceInfo) -> Unit)
                 .selectable(selected = (selectedItem?.serviceName == item.serviceName), onClick = {selectedItem = item})
                 .clickable(            onClick = {selectedItem = item
                     println("Selected Item: ${selectedItem?.serviceName}")
-                    onDeviceSelected(selectedItem!!)},
+                    viewModel.selectDevice(item)
+                    onDeviceSelected()},
                     interactionSource = remember { MutableInteractionSource() },
                     indication = ripple(bounded = true, color = Color.Black)
                 ),

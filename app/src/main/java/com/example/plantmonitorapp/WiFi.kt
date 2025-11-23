@@ -1,5 +1,11 @@
 package com.example.plantmonitorapp
 
+import android.net.nsd.NsdServiceInfo
+import androidx.compose.runtime.mutableStateListOf
+import androidx.lifecycle.LiveData
+import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.ViewModel
+import androidx.navigation.NavHostController
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
@@ -8,11 +14,49 @@ import kotlinx.coroutines.withContext
 import java.io.PrintWriter
 import java.net.Socket
 
+class ServiceViewModel : ViewModel() {
+    val discoveredDevices = mutableStateListOf<NsdServiceInfo>()
+
+    // Selected device
+    private lateinit var _selectedDevice: NsdServiceInfo
+    lateinit var selectedDevice: NsdServiceInfo
+
+    fun selectDevice(device: NsdServiceInfo) {
+        _selectedDevice = device
+        selectedDevice = _selectedDevice
+    }
+
+    // Optional: add device to the list
+    fun addDevice(device: NsdServiceInfo) {
+        if (!discoveredDevices.contains(device)) {
+            discoveredDevices.add(device)
+        }
+    }
+
+    // Optional: clear devices
+    fun clearDevices() {
+        discoveredDevices.clear()
+    }
+}
+
 object SocketManager
 {
     lateinit var socket: Socket
     var isActive = false
     val packetChannel = Channel<MutableList<Byte>>(capacity = Channel.UNLIMITED)
+
+    fun ConnectToDevice(devInfo: NsdServiceInfo)
+    {
+        var connected = false
+        CoroutineScope(Dispatchers.IO).launch()
+        {
+            if(SocketManager.Connect(devInfo.hostAddresses.first().toString(), devInfo.port))
+            {
+                SocketManager.startReading()
+            }
+        }
+    }
+
 
     suspend fun Connect(ip: String, port: Int): Boolean
     {
