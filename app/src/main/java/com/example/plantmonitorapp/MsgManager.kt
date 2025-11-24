@@ -3,11 +3,13 @@ package com.example.plantmonitorapp
 import java.nio.ByteBuffer
 
 const val SOP: Byte = 0x7E    // Start of packet identifier
-const val EOP: Byte = SOP     // End of packet identifier
-const val SOP_ESCAPE: Byte = 0x7D
+const val EOP: Byte = 0X7F    // End of packet identifier
+const val ESCAPE: Byte = 0x7D
 const val SOP_STUFF: Byte  = 0x5E
+const val EOP_STUFF: Byte  = 0x5F
 const val ESCAPE_STUFF: Byte = 0x5D
 const val  NON_SOP_BYTE: Byte = 0x7E
+const val  NON_EOP_BYTE: Byte = 0x7F
 const val NON_ESCAPE_BYTE: Byte = 0x7D
 const val wifiConnect: Byte = 0x01    // connect to wifi command identifier
 const val REQUEST_ESP32_WIFI_STS: Byte = 0x02
@@ -113,12 +115,17 @@ fun stuffPacket(packet: ByteArray, len: Int): ByteArray
     {
         if(packet[i] == SOP)
         {
-            tmpBuf.add(SOP_ESCAPE)
+            tmpBuf.add(ESCAPE)
             tmpBuf.add(SOP_STUFF)
         }
-        else if(packet[i] == SOP_ESCAPE)
+        else if(packet[i] == EOP)
         {
-            tmpBuf.add(SOP_ESCAPE)
+            tmpBuf.add(ESCAPE)
+            tmpBuf.add(EOP_STUFF)
+        }
+        else if(packet[i] == ESCAPE)
+        {
+            tmpBuf.add(ESCAPE)
             tmpBuf.add(ESCAPE_STUFF)
         }
         else
@@ -139,7 +146,7 @@ fun unstuffPacket(packet: ByteArray, len: Int):  Int
 
     while((i < len) && (errorCode == 0.toByte()))
     {
-        if(packet[i] == SOP_ESCAPE)
+        if(packet[i] == ESCAPE)
         {
             // this is the last byte in the packet
             if(i == (len - 1))
@@ -152,6 +159,11 @@ fun unstuffPacket(packet: ByteArray, len: Int):  Int
                 if(packet[i + 1] == SOP_STUFF)
                 {
                     tmpBuf.add(NON_SOP_BYTE)
+                    i++
+                }
+                else if(packet[i + 1] == EOP_STUFF)
+                {
+                    tmpBuf.add(NON_EOP_BYTE)
                     i++
                 }
                 else if(packet[i + 1] == ESCAPE_STUFF)
