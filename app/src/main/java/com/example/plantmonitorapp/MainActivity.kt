@@ -6,6 +6,8 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.net.nsd.NsdServiceInfo
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -139,11 +141,15 @@ class MainActivity : ComponentActivity() {
         BluetoothViewModelFactory(applicationContext)
     }
 
+    private val nsdServiceViewModel: ServiceViewModel by viewModels()
+
     @SuppressLint("MissingPermission")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         initLauncher(this)
+        nsdServiceViewModel.startDiscovery()
+        nsdServiceViewModel.restartServiceDiscovery()
         setContent {
             PlantMonitorAppTheme {
 
@@ -153,6 +159,29 @@ class MainActivity : ComponentActivity() {
 
             appContext = this
         }
+    }
+
+    // when app loses focus
+    override fun onPause() {
+        super.onPause()
+        // stop discovery process to help nsd service discovery work better
+        nsdServiceViewModel.stopServiceDiscovery()
+    }
+
+    // when app is fully invisible
+    override fun onStop() {
+        super.onStop()
+        // stop discovery process to help nsd service discovery work better
+        nsdServiceViewModel.stopServiceDiscovery()
+    }
+
+    override fun onDestroy() {
+        nsdServiceViewModel.stopServiceDiscovery()
+        super.onDestroy()
+    }
+
+    override fun onResume() {
+        super.onResume()
     }
 
     // launcher for bluetooth has to be registered on creation
@@ -574,7 +603,6 @@ fun ConnectingDialog(
 fun MyScreen(viewModel: BluetoothViewModel, pairingLauncher: ActivityResultLauncher<IntentSenderRequest>) {
     val navController = rememberNavController()
     val serviceViewModel: ServiceViewModel = viewModel()
-    initNsdDiscoveryListener(LocalContext.current, serviceViewModel)
 
     NavHost(navController = navController, startDestination = "DeviceSelection",
         enterTransition = { slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Start, tween(400)) },

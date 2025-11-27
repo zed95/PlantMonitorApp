@@ -14,31 +14,6 @@ import kotlinx.coroutines.withContext
 import java.io.PrintWriter
 import java.net.Socket
 
-class ServiceViewModel : ViewModel() {
-    val discoveredDevices = mutableStateListOf<NsdServiceInfo>()
-
-    // Selected device
-    private lateinit var _selectedDevice: NsdServiceInfo
-    lateinit var selectedDevice: NsdServiceInfo
-
-    fun selectDevice(device: NsdServiceInfo) {
-        _selectedDevice = device
-        selectedDevice = _selectedDevice
-    }
-
-    // Optional: add device to the list
-    fun addDevice(device: NsdServiceInfo) {
-        if (!discoveredDevices.contains(device)) {
-            discoveredDevices.add(device)
-        }
-    }
-
-    // Optional: clear devices
-    fun clearDevices() {
-        discoveredDevices.clear()
-    }
-}
-
 object SocketManager
 {
     lateinit var socket: Socket
