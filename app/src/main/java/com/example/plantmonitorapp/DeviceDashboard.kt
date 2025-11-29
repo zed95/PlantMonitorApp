@@ -18,16 +18,28 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowRight
 import androidx.compose.material.icons.filled.Cloud
+import androidx.compose.material.icons.filled.SignalWifi4Bar
+import androidx.compose.material.icons.filled.SignalWifiBad
+import androidx.compose.material.icons.filled.SignalWifiStatusbar4Bar
 import androidx.compose.material.icons.filled.Thermostat
 import androidx.compose.material.icons.filled.WaterDrop
+import androidx.compose.material.icons.filled.Wifi
+import androidx.compose.material.icons.filled.WifiOff
+import androidx.compose.material.icons.outlined.NetworkWifi3Bar
+import androidx.compose.material.icons.outlined.Wifi
+import androidx.compose.material.icons.sharp.SignalWifiStatusbar4Bar
+import androidx.compose.material.icons.twotone.SignalWifiStatusbar4Bar
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.Icon
+import androidx.compose.material3.ShapeDefaults
+import androidx.compose.material3.Shapes
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
@@ -50,7 +62,7 @@ fun DeviceDashboard(serviceViewModel: ServiceViewModel)
             .fillMaxSize()
             .background(BackgroundGrey)
     ) {
-        DeviceDashBaordName(name!!)
+        TopPanel(name)
         temp.ElementImplement()
         hum.ElementImplement()
         moist.ElementImplement()
@@ -137,4 +149,89 @@ class EnvInfoElement(private val title: String,
             }
         }
     }
+}
+
+@Composable
+fun TopPanel(deviceName: String)
+{
+    ElevatedCard(
+        shape = RoundedCornerShape(10.dp),
+        elevation = CardDefaults.cardElevation(10.dp),
+        modifier = Modifier
+            .fillMaxWidth(1.0f)
+            .heightIn(min = 100.dp, max = 100.dp) // Maximum height
+    )
+    {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .fillMaxHeight()
+                .background(ElevatedGrey),   // optional spacing from the top
+
+        )
+        {
+            Row(modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 40.dp),
+                horizontalArrangement = Arrangement.Center)
+            {
+
+                Text(text = deviceName,
+                    color = CustomSilver,
+                    fontSize = 40.sp
+                )
+
+                TopPanelDevConnectStsIcon()
+            }
+        }
+    }
+}
+
+@Composable
+fun TopPanelDevConnectStsIcon()
+{
+    val devConnectSts = SocketManager.connectionSts
+
+    Icon(
+        imageVector =
+            when(devConnectSts)
+            {
+                DeviceConnectionSts.CONNECTED ->
+                {
+                    Icons.Outlined.Wifi
+                }
+
+                DeviceConnectionSts.CONNECTING ->
+                {
+                    Icons.Filled.Wifi
+                }
+
+                DeviceConnectionSts.DISCONNECTED ->
+                {
+                    Icons.Filled.WifiOff
+                }
+            },
+        contentDescription = "Arrow",
+        tint =
+            when(devConnectSts)
+            {
+                DeviceConnectionSts.CONNECTED ->
+                {
+                    Color.Green
+                }
+
+                DeviceConnectionSts.CONNECTING ->
+                {
+                    Color.Yellow
+                }
+
+                DeviceConnectionSts.DISCONNECTED ->
+                {
+                    Color.Red
+                }
+            },
+        modifier = Modifier
+            .size(40.dp)
+            .padding(start = 4.dp)
+    )
 }

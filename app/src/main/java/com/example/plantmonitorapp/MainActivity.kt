@@ -148,7 +148,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         initLauncher(this)
-        nsdServiceViewModel.startDiscovery()
+//        nsdServiceViewModel.startDiscovery()
         nsdServiceViewModel.restartServiceDiscovery()
         setContent {
             PlantMonitorAppTheme {

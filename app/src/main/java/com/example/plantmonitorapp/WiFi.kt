@@ -1,7 +1,10 @@
 package com.example.plantmonitorapp
 
 import android.net.nsd.NsdServiceInfo
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
@@ -14,20 +17,32 @@ import kotlinx.coroutines.withContext
 import java.io.PrintWriter
 import java.net.Socket
 
-object SocketManager
+enum class DeviceConnectionSts {
+    DISCONNECTED,
+    CONNECTING,
+    CONNECTED
+}
+
+object SocketManager: ViewModel()
 {
     lateinit var socket: Socket
+    var connectionSts by mutableStateOf(DeviceConnectionSts.DISCONNECTED)
     var isActive = false
     val packetChannel = Channel<MutableList<Byte>>(capacity = Channel.UNLIMITED)
 
     fun ConnectToDevice(devInfo: NsdServiceInfo)
     {
-        var connected = false
+        connectionSts = DeviceConnectionSts.CONNECTING
         CoroutineScope(Dispatchers.IO).launch()
         {
-            if(SocketManager.Connect(devInfo.hostAddresses.first().toString(), devInfo.port))
+            if(Connect(devInfo.hostAddresses.first().toString(), devInfo.port))
             {
-                SocketManager.startReading()
+                connectionSts = DeviceConnectionSts.CONNECTED
+                startReading()
+            }
+            else
+            {
+                connectionSts = DeviceConnectionSts.DISCONNECTED
             }
         }
     }
@@ -38,7 +53,6 @@ object SocketManager
         return withContext(Dispatchers.IO)
         {
             try {
-
                 // Connect to the server
                 socket = Socket(ip.removePrefix("/"), port)
                 isActive = true
