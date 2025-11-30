@@ -14,8 +14,9 @@ const val NON_ESCAPE_BYTE: Byte = 0x7D
 const val wifiConnect: Byte = 0x01    // connect to wifi command identifier
 const val REQUEST_ESP32_WIFI_STS: Byte = 0x02
 const val REQUEST_RSP_ESP32_WIFI_STS: Byte = 0x03
-const val testChecksum: Byte = 0x11
 
+const val REQUEST_CONNECT_STS: Byte = 0x04
+const val RSP_CONNECT_STS: Byte = 0x05
 // destuffing error codes
 const val ERR_BUF_OVERFLOW: Byte =   -2
 const val ERR_INVALID_ESCAPE: Byte = -3
@@ -216,4 +217,25 @@ fun RemSopEop(packet: ByteArray)
     {
         packet[x] = tmpBuf[x]
     }
+}
+
+fun PktConnectSts(): ByteArray
+{
+    val tmpBuf = mutableListOf<Byte>()
+    val checksumSize: Byte = 1;
+    val payloadSize: Int =  checksumSize.toInt()
+    val payloadSizeBytes = ByteBuffer.allocate(4).putInt(payloadSize).array().toList()
+    var checksum: Byte = 0;
+    val stuffedMsg = mutableListOf<Byte>()
+
+    tmpBuf.add(REQUEST_CONNECT_STS)
+    tmpBuf.addAll(payloadSizeBytes)
+    checksum = calcChecksum(tmpBuf.toByteArray(), tmpBuf.size)
+    tmpBuf.add(checksum)
+
+    stuffedMsg.addAll(stuffPacket(tmpBuf.toByteArray(), tmpBuf.size).toList())
+    stuffedMsg.add(0, SOP) // insert SOP at beginning of list
+    stuffedMsg.add(EOP) // add end of packet identifier
+
+    return stuffedMsg.toByteArray()
 }
