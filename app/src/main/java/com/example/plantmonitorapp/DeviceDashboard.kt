@@ -36,6 +36,8 @@ import androidx.compose.material3.ShapeDefaults
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -52,6 +54,13 @@ import com.example.plantmonitorapp.ui.theme.ElevatedGrey
 @Composable
 fun DeviceDashboard(serviceViewModel: ServiceViewModel)
 {
+
+    // connect to device selected
+    LaunchedEffect(Unit)
+    {
+        SocketManager.ConnectToDevice(serviceViewModel.selectedDevice)
+    }
+
     val temp = EnvInfoElement("Temperature", Icons.Filled.Thermostat, Color(0xFFFF7070))
     val hum = EnvInfoElement("Humidity", Icons.Filled.Cloud, Color(0xFF68ADFF))
     val moist = EnvInfoElement("Soil Moisture", Icons.Filled.WaterDrop, Color(0xFF003FFF))
@@ -68,7 +77,7 @@ fun DeviceDashboard(serviceViewModel: ServiceViewModel)
         moist.ElementImplement()
     }
 
-    SocketManager.ConnectToDevice(serviceViewModel.selectedDevice)
+
 }
 
 @Composable

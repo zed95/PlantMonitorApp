@@ -57,7 +57,6 @@ object SocketManager: ViewModel()
                 startReading()
                 startOutStream()
                 isConnectionAlive()
-
             }
             else
             {
@@ -65,7 +64,6 @@ object SocketManager: ViewModel()
             }
         }
     }
-
 
     suspend fun Connect(ip: String, port: Int): Boolean
     {
@@ -80,6 +78,17 @@ object SocketManager: ViewModel()
                 e.printStackTrace()
                 false
             }
+        }
+    }
+
+    fun Disconnect() = CoroutineScope(Dispatchers.IO).launch()
+    {
+        if(isActive)
+        {
+            socket.close()
+            connectionSts = DeviceConnectionSts.DISCONNECTED
+            devicePingSts = ConnectionAliveSts.NO_RSP
+            isActive = false
         }
     }
 
@@ -150,7 +159,7 @@ object SocketManager: ViewModel()
 
     fun handlePacket(buffer: MutableList<Byte>)
     {
-        var byteBuf = buffer.toByteArray()
+        val byteBuf = buffer.toByteArray()
         var bufIdx = buffer.size
         // remove SOP and EOP and update size index
         RemSopEop(byteBuf)
@@ -223,7 +232,7 @@ object SocketManager: ViewModel()
             // device did not reply
             else
             {
-                if(retryCnt <= 3)
+                if(retryCnt < 3)
                 {
                     retryCnt++
                     connectionSts = DeviceConnectionSts.CONNECTING
@@ -231,9 +240,7 @@ object SocketManager: ViewModel()
                 }
                 else
                 {
-                    isActive = false
-                    socket.close()
-                    connectionSts = DeviceConnectionSts.DISCONNECTED
+                    Disconnect()
                 }
             }
         }

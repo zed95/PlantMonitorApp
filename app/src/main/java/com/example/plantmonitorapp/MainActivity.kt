@@ -629,6 +629,14 @@ fun DeviceSelectionScreen(viewModel: BluetoothViewModel,
                           pairingLauncher: ActivityResultLauncher<IntentSenderRequest>,
                           navController: NavHostController)
 {
+    // when in the device selection screen, call the socket disconnection to prepare it to connect to another device
+    // do it inside launch effect because this way it will only be called when the screen is entered and won't be done
+    // redundantly during recompositions of the screens
+    LaunchedEffect(Unit) {
+        println("Disconnecting on exit to main screen")
+        SocketManager.Disconnect()
+    }
+
     // This places the button in the center of the screen
     Column(
         modifier = Modifier
@@ -692,66 +700,6 @@ fun DeviceSelectionScreen(viewModel: BluetoothViewModel,
         }
     }
 }
-
-
-//@Composable
-//fun DeviceList(devices: List<NsdServiceInfo>, onDeviceSelected: (NsdServiceInfo) -> Unit)
-//{
-//    val listState = rememberLazyListState()
-//    var selectedItem by remember{ mutableStateOf<NsdServiceInfo?>(null) }
-//
-//    LazyColumn(state = listState,
-//               modifier = Modifier.fillMaxWidth().
-//               height(300.dp).
-//               clip(RoundedCornerShape(10.dp)).
-//               background(ElevatedGrey)
-//    )
-//
-//
-//    {
-//        items(items = devices)
-//        { item ->
-//
-//            Row(modifier = Modifier
-//                .fillMaxWidth()
-//                .padding(top = 16.dp, start = 20.dp, end = 10.dp)
-//                .selectable(selected = (selectedItem?.serviceName == item.serviceName), onClick = {selectedItem = item})
-//                .clickable(            onClick = {selectedItem = item
-//                    println("Selected Item: ${selectedItem?.serviceName}")
-//                    onDeviceSelected(selectedItem!!)},
-//                    interactionSource = remember { MutableInteractionSource() },
-//                    indication = ripple(bounded = true, color = Color.Black)
-//                ),
-//                horizontalArrangement = Arrangement.Absolute.SpaceBetween,
-//                verticalAlignment = Alignment.CenterVertically,)
-//            {
-//                Text(
-//                    text = item.serviceName,
-//                    color = CustomSilver,
-//                    fontSize = 20.sp,
-//                    fontWeight = FontWeight.SemiBold,
-//                    textAlign = TextAlign.Center,
-//                    modifier = Modifier.padding(vertical = 5.dp)
-//                )
-//
-//                Icon(
-//                    imageVector = Icons.AutoMirrored.Filled.ArrowRight,
-//                    contentDescription = "Arrow",
-//                    tint = CustomSilver,
-//                    modifier = Modifier
-//                        .size(40.dp)
-//                        .padding(start = 4.dp)
-//                )
-//            }
-//
-//            HorizontalDivider(modifier = Modifier.padding(horizontal = 20.dp), thickness = 1.dp, color = CustomGold)
-//        }
-//
-//        // selectedItem holds the item string that was selected. If I work backwards I can get its index in the list
-//        // if I pass the actual List of all available devices advertising plant monitor service I can then display
-//        // the list of all the devices select one and connect to it and start displaying the information.
-//    }
-//}
 
 @Composable
 fun DeviceList(viewModel: ServiceViewModel, onDeviceSelected: () -> Unit)
