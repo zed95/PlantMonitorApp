@@ -37,6 +37,45 @@ enum class ConnectionAliveSts
     RSP_RECEIVED
 }
 
+enum class CrossDevicePackets(val id: Int) {
+
+    XDEVMSG_PLANT_MON_CONNECT_STS_RSP(5),
+    XDEVMSG_START(20),
+    XDEVMSG_WIFI_SSID(XDEVMSG_START.id),
+    XDEVMSG_WIFI_PSWD(21),
+    XDEVMSG_CONNECT_NETWORK(22),
+    XDEVMSG_CONNECT_STATUS(23),
+    XDEVMSG_TEMP_DATA_REQ(24),
+    XDEVMSG_LIVE_TEMP_DATA(25),
+    XDEVMSG_MAX_TEMP_DATA(26),
+    XDEVMSG_MIN_TEMP_DATA(27),
+    XDEVMSG_HUM_DATA_REQ(28),
+    XDEVMSG_LIVE_HUM_DATA(29),
+    XDEVMSG_MAX_HUM_DATA(30),
+    XDEVMSG_MIN_HUM_DATA(31),
+    XDEVMSG_LUX_DATA_REQ(32),
+    XDEVMSG_LIVE_LUX_DATA(33),
+    XDEVMSG_MAX_LUX_DATA(34),
+    XDEVMSG_MIN_LUX_DATA(35),
+    XDEVMSG_SOILM1_DATA_REQ(36),
+    XDEVMSG_LIVE_SOILM1_DATA(37),
+    XDEVMSG_MAX_SOILM1_DATA(38),
+    XDEVMSG_MIN_SOILM1_DATA(39),
+    XDEVMSG_SOILM2_DATA_REQ(40),
+    XDEVMSG_LIVE_SOILM2_DATA(41),
+    XDEVMSG_MAX_SOILM2_DATA(42),
+    XDEVMSG_MIN_SOILM2_DATA(43),
+    XDEVMSG_TEMP_THRSH_DAT_REQ(44),
+    XDEVMSG_TEMP_THRSH_DAT(45),
+    XDEVMSG_MULTI_PKT_REQUEST(46),
+    XDEVMSG_MULTI_PKT_REQUEST_REPLY(47);
+
+    companion object {
+        private val map = CrossDevicePackets.entries.associateBy { it.id }
+        fun fromId(id: Int): CrossDevicePackets? = map[id]
+    }
+}
+
 object SocketManager: ViewModel()
 {
     lateinit var socket: Socket
@@ -45,6 +84,7 @@ object SocketManager: ViewModel()
     var isActive = false
     val packetChannel = Channel<MutableList<Byte>>(capacity = Channel.UNLIMITED)
     val txPacketCh = Channel<MutableList<Byte>>(capacity = Channel.UNLIMITED)
+    val dashboardCh = Channel<MutableList<Byte>>(capacity = Channel.UNLIMITED)
 
     fun ConnectToDevice(devInfo: NsdServiceInfo)
     {
@@ -157,7 +197,7 @@ object SocketManager: ViewModel()
         }
     }
 
-    fun handlePacket(buffer: MutableList<Byte>)
+    suspend fun handlePacket(buffer: MutableList<Byte>)
     {
         val byteBuf = buffer.toByteArray()
         var bufIdx = buffer.size
@@ -172,12 +212,52 @@ object SocketManager: ViewModel()
         {
             if(calcChecksum(byteBuf, bufIdx) == 0.toByte())
             {
-                when(byteBuf[0])
+
+                when(CrossDevicePackets.fromId(byteBuf[0].toInt()))
                 {
-                    RSP_CONNECT_STS ->
+                    CrossDevicePackets.XDEVMSG_PLANT_MON_CONNECT_STS_RSP ->
                     {
                         devicePingSts = ConnectionAliveSts.RSP_RECEIVED
                     }
+
+                    CrossDevicePackets.XDEVMSG_START -> TODO()
+                    CrossDevicePackets.XDEVMSG_WIFI_SSID -> TODO()
+                    CrossDevicePackets.XDEVMSG_WIFI_PSWD -> TODO()
+                    CrossDevicePackets.XDEVMSG_CONNECT_NETWORK -> TODO()
+                    CrossDevicePackets.XDEVMSG_CONNECT_STATUS -> TODO()
+                    CrossDevicePackets.XDEVMSG_TEMP_DATA_REQ -> TODO()
+                    CrossDevicePackets.XDEVMSG_LIVE_TEMP_DATA,
+                    CrossDevicePackets.XDEVMSG_MAX_TEMP_DATA,
+                    CrossDevicePackets.XDEVMSG_MIN_TEMP_DATA -> {
+                        dashboardCh.send(buffer)
+                    }
+                    CrossDevicePackets.XDEVMSG_HUM_DATA_REQ -> TODO()
+                    CrossDevicePackets.XDEVMSG_LIVE_HUM_DATA,
+                    CrossDevicePackets.XDEVMSG_MAX_HUM_DATA,
+                    CrossDevicePackets.XDEVMSG_MIN_HUM_DATA -> {
+                        dashboardCh.send(buffer)
+                    }
+                    CrossDevicePackets.XDEVMSG_LUX_DATA_REQ -> TODO()
+                    CrossDevicePackets.XDEVMSG_LIVE_LUX_DATA -> TODO()
+                    CrossDevicePackets.XDEVMSG_MAX_LUX_DATA -> TODO()
+                    CrossDevicePackets.XDEVMSG_MIN_LUX_DATA -> TODO()
+                    CrossDevicePackets.XDEVMSG_SOILM1_DATA_REQ -> TODO()
+                    CrossDevicePackets.XDEVMSG_LIVE_SOILM1_DATA,
+                    CrossDevicePackets.XDEVMSG_MAX_SOILM1_DATA,
+                    CrossDevicePackets.XDEVMSG_MIN_SOILM1_DATA -> {
+                        dashboardCh.send(buffer)
+                    }
+                    CrossDevicePackets.XDEVMSG_SOILM2_DATA_REQ -> TODO()
+                    CrossDevicePackets.XDEVMSG_LIVE_SOILM2_DATA,
+                    CrossDevicePackets.XDEVMSG_MAX_SOILM2_DATA,
+                    CrossDevicePackets.XDEVMSG_MIN_SOILM2_DATA -> {
+                        dashboardCh.send(buffer)
+                    }
+                    CrossDevicePackets.XDEVMSG_TEMP_THRSH_DAT_REQ -> TODO()
+                    CrossDevicePackets.XDEVMSG_TEMP_THRSH_DAT -> TODO()
+                    CrossDevicePackets.XDEVMSG_MULTI_PKT_REQUEST -> TODO()
+                    CrossDevicePackets.XDEVMSG_MULTI_PKT_REQUEST_REPLY -> TODO()
+                    null -> TODO()
                 }
             }
         }

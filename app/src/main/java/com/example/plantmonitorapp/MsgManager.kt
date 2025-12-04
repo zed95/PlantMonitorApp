@@ -22,6 +22,8 @@ const val ERR_BUF_OVERFLOW: Byte =   -2
 const val ERR_INVALID_ESCAPE: Byte = -3
 const val ERR_ESCAPE_AT_END: Byte =  -4
 
+
+
 fun msgConnectEsp32ToWifi(ssid: String, password: String): ByteArray
 {
     val msg = mutableListOf<Byte>()

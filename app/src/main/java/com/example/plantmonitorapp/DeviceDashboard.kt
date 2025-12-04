@@ -50,10 +50,19 @@ import com.example.plantmonitorapp.ui.theme.BackgroundGrey
 import com.example.plantmonitorapp.ui.theme.CustomSilver
 import com.example.plantmonitorapp.ui.theme.ElevatedGreen
 import com.example.plantmonitorapp.ui.theme.ElevatedGrey
+import kotlinx.coroutines.channels.Channel
 
 @Composable
 fun DeviceDashboard(serviceViewModel: ServiceViewModel)
 {
+    /*
+    I am now passing packets sent from plant monitor to here
+    I need a way of determining which packet is for which element
+    and then update this element with the data for displaying
+    I then need to ensure that the composable recompses itself to
+    update the screen
+     */
+
 
     // connect to device selected
     LaunchedEffect(Unit)
