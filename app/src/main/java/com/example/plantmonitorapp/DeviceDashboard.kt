@@ -65,9 +65,9 @@ fun DeviceDashboard(serviceViewModel: ServiceViewModel)
     var packet = listOf<Byte>()
     var dst = -1
     var type = -1
-    val temp = remember {EnvInfoElement("Temperature", Icons.Filled.Thermostat, Color(0xFFFF7070))}
-    val hum = remember {EnvInfoElement("Humidity", Icons.Filled.Cloud, Color(0xFF68ADFF))}
-    val moist = remember { EnvInfoElement("Soil Moisture", Icons.Filled.WaterDrop, Color(0xFF003FFF)) }
+    val temp = remember {EnvInfoElement("Temperature", Icons.Filled.Thermostat, Color(0xFFFF7070), "\u2103")}
+    val hum = remember {EnvInfoElement("Humidity", Icons.Filled.Cloud, Color(0xFF68ADFF), "%")}
+    val moist = remember { EnvInfoElement("Soil Moisture", Icons.Filled.WaterDrop, Color(0xFF003FFF), "%") }
     val name = serviceViewModel.selectedDevice.serviceName
 
 
@@ -96,7 +96,7 @@ fun DeviceDashboard(serviceViewModel: ServiceViewModel)
 
                 3 ->
                 {
-                    moist.UpdateVal(packet, type)
+                    moist.UpdateValShort(packet, type)
                 }
 
                 4 ->
@@ -138,13 +138,14 @@ fun DeviceDashBaordName(name: String)
 
 class EnvInfoElement(private val title: String,
                      private val icon: ImageVector,
-                     private val iconColor: Color
+                     private val iconColor: Color,
+                     private val units: String,
 )
 {
 
-    private var currentVal = mutableFloatStateOf(0.0f)
-    private var maxVal = mutableFloatStateOf(0.0f)
-    private var minVal = mutableFloatStateOf(0.0f)
+    private var currentVal = mutableStateOf<Any>(0.0f)
+    private var maxVal = mutableStateOf<Any>(0.0f)
+    private var minVal = mutableStateOf<Any>(0.0f)
 
     @Composable
     fun ElementImplement()
@@ -193,7 +194,13 @@ class EnvInfoElement(private val title: String,
                         )
                         Spacer(modifier = Modifier.height(15.dp))   // spacing between texts
                         Text(
-                            text = "${currentVal.floatValue}",
+                            text = (
+                                when(val v = currentVal.value)
+                                {
+                                    is Float -> {"%.2f".format(currentVal.value) + units}
+                                    else -> {"${currentVal.value}$units"}
+                                }),
+
                             color = CustomSilver,
                             fontSize = 30.sp,
                             modifier = Modifier.offset(x = 20.dp)
@@ -206,28 +213,52 @@ class EnvInfoElement(private val title: String,
 
     fun UpdateVal(pkt: List<Byte>, pktInfoType: Int)
     {
-        val dataBytes = (pkt[2].toInt() and 0xFF)        or
-                ((pkt[3].toInt() and 0xFF) shl 8)  or
-                ((pkt[4].toInt() and 0xFF) shl 16) or
-                ((pkt[5].toInt() and 0xFF) shl 24)
+        val dataBytes = (pkt[5].toInt() and 0xFF)        or
+                ((pkt[6].toInt() and 0xFF) shl 8)  or
+                ((pkt[7].toInt() and 0xFF) shl 16) or
+                ((pkt[8].toInt() and 0xFF) shl 24)
 
 
         when(pktInfoType)
         {
             1 ->
             {
-                currentVal.floatValue = Float.fromBits(dataBytes)
-                println("currentVal.floatValue: ${currentVal.floatValue}")
+                currentVal.value = Float.fromBits(dataBytes)
             }
 
             2 ->
             {
-                maxVal.floatValue = Float.fromBits(dataBytes)
+                maxVal.value = Float.fromBits(dataBytes)
             }
 
             3 ->
             {
-                minVal.floatValue = Float.fromBits(dataBytes)
+                minVal.value = Float.fromBits(dataBytes)
+            }
+        }
+
+    }
+
+    fun UpdateValShort(pkt: List<Byte>, pktInfoType: Int)
+    {
+        val value = (pkt[5].toInt() and 0xFF) or ((pkt[6].toInt() and 0xFF) shl 8)
+
+
+        when(pktInfoType)
+        {
+            1 ->
+            {
+                currentVal.value = value.toShort()
+            }
+
+            2 ->
+            {
+                maxVal.value = value.toShort()
+            }
+
+            3 ->
+            {
+                minVal.value = value.toShort()
             }
         }
 

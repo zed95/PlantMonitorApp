@@ -69,7 +69,22 @@ enum class CrossDevicePackets(val id: Int) {
     XDEVMSG_TEMP_THRSH_DAT_REQ(44),
     XDEVMSG_TEMP_THRSH_DAT(45),
     XDEVMSG_MULTI_PKT_REQUEST(46),
-    XDEVMSG_MULTI_PKT_REQUEST_REPLY(47);
+    XDEVMSG_MULTI_PKT_REQUEST_REPLY(47),
+
+    XDEVMSG_MAX_T_ACT_IMP_TH(48),
+    XDEVMSG_MAX_T_ACT_TRIG_TH(49),
+    XDEVMSG_MIN_T_ACT_IMP_TH(50),
+    XDEVMSG_MIN_T_ACT_TRIG_TH(51),
+
+    XDEVMSG_MAX_H_ACT_IMP_TH(52),
+    XDEVMSG_MAX_H_ACT_TRIG_TH(53),
+    XDEVMSG_MIN_H_ACT_IMP_TH(54),
+    XDEVMSG_MIN_H_ACT_TRIG_TH(55),
+
+    XDEVMSG_MAX_SM1_ACT_IMP_TH(56),
+    XDEVMSG_MAX_SM1_ACT_TRIG_TH(57),
+    XDEVMSG_MIN_SM1_ACT_IMP_TH(58),
+    XDEVMSG_MIN_SM1_ACT_TRIG_TH (59);
 
     companion object {
         private val map = CrossDevicePackets.entries.associateBy { it.id }
@@ -261,6 +276,21 @@ object SocketManager: ViewModel()
                     CrossDevicePackets.XDEVMSG_TEMP_THRSH_DAT -> TODO()
                     CrossDevicePackets.XDEVMSG_MULTI_PKT_REQUEST -> TODO()
                     CrossDevicePackets.XDEVMSG_MULTI_PKT_REQUEST_REPLY -> TODO()
+
+                    CrossDevicePackets.XDEVMSG_MAX_T_ACT_IMP_TH,
+                    CrossDevicePackets.XDEVMSG_MAX_T_ACT_TRIG_TH,
+                    CrossDevicePackets.XDEVMSG_MIN_T_ACT_IMP_TH,
+                    CrossDevicePackets.XDEVMSG_MIN_T_ACT_TRIG_TH,
+                    CrossDevicePackets.XDEVMSG_MAX_H_ACT_IMP_TH,
+                    CrossDevicePackets.XDEVMSG_MAX_H_ACT_TRIG_TH,
+                    CrossDevicePackets.XDEVMSG_MIN_H_ACT_IMP_TH,
+                    CrossDevicePackets.XDEVMSG_MIN_H_ACT_TRIG_TH,
+                    CrossDevicePackets.XDEVMSG_MAX_SM1_ACT_IMP_TH,
+                    CrossDevicePackets.XDEVMSG_MAX_SM1_ACT_TRIG_TH,
+                    CrossDevicePackets.XDEVMSG_MIN_SM1_ACT_IMP_TH ,
+                    CrossDevicePackets.XDEVMSG_MIN_SM1_ACT_TRIG_TH -> {
+                        dashboardCh.send(byteBuf.toMutableList())
+                    }
                     null -> {}
                 }
             }

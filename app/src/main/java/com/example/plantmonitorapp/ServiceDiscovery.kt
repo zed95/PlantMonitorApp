@@ -69,7 +69,6 @@ class ServiceViewModel(application: Application) : AndroidViewModel(application)
 
             override fun onStartDiscoveryFailed(serviceType: String, errorCode: Int) {
                 Log.e(TAG, "Discovery failed: Error code:$errorCode")
-                nsdManager.stopServiceDiscovery(this)
             }
 
             override fun onStopDiscoveryFailed(serviceType: String, errorCode: Int) {
@@ -92,7 +91,8 @@ class ServiceViewModel(application: Application) : AndroidViewModel(application)
         }
 
         override fun onServiceLost() {
-            TODO("Not yet implemented")
+            // on service lost tells android that the service is gone by either device disconnecting or something else
+            // I can ignore it for now because losing the service does not affect me
         }
 
         override fun onServiceUpdated(serviceInfo: NsdServiceInfo) {
