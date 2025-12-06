@@ -17,6 +17,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
@@ -85,8 +86,9 @@ object SocketManager: ViewModel()
     val packetChannel = Channel<MutableList<Byte>>(capacity = Channel.UNLIMITED)
     val txPacketCh = Channel<MutableList<Byte>>(capacity = Channel.UNLIMITED)
     val dashboardCh = Channel<MutableList<Byte>>(capacity = Channel.UNLIMITED)
+    val dashboardPktFlow = dashboardCh.receiveAsFlow()
 
-    fun ConnectToDevice(devInfo: NsdServiceInfo)
+    fun ConnectToDevice(devInfo: NsdServiceInfo): DeviceConnectionSts
     {
         connectionSts = DeviceConnectionSts.CONNECTING
         CoroutineScope(Dispatchers.IO).launch()
@@ -103,6 +105,8 @@ object SocketManager: ViewModel()
                 connectionSts = DeviceConnectionSts.DISCONNECTED
             }
         }
+
+        return connectionSts
     }
 
     suspend fun Connect(ip: String, port: Int): Boolean
@@ -229,13 +233,13 @@ object SocketManager: ViewModel()
                     CrossDevicePackets.XDEVMSG_LIVE_TEMP_DATA,
                     CrossDevicePackets.XDEVMSG_MAX_TEMP_DATA,
                     CrossDevicePackets.XDEVMSG_MIN_TEMP_DATA -> {
-                        dashboardCh.send(buffer)
+                        dashboardCh.send(byteBuf.toMutableList())
                     }
                     CrossDevicePackets.XDEVMSG_HUM_DATA_REQ -> TODO()
                     CrossDevicePackets.XDEVMSG_LIVE_HUM_DATA,
                     CrossDevicePackets.XDEVMSG_MAX_HUM_DATA,
                     CrossDevicePackets.XDEVMSG_MIN_HUM_DATA -> {
-                        dashboardCh.send(buffer)
+                        dashboardCh.send(byteBuf.toMutableList())
                     }
                     CrossDevicePackets.XDEVMSG_LUX_DATA_REQ -> TODO()
                     CrossDevicePackets.XDEVMSG_LIVE_LUX_DATA -> TODO()
@@ -245,19 +249,19 @@ object SocketManager: ViewModel()
                     CrossDevicePackets.XDEVMSG_LIVE_SOILM1_DATA,
                     CrossDevicePackets.XDEVMSG_MAX_SOILM1_DATA,
                     CrossDevicePackets.XDEVMSG_MIN_SOILM1_DATA -> {
-                        dashboardCh.send(buffer)
+                        dashboardCh.send(byteBuf.toMutableList())
                     }
                     CrossDevicePackets.XDEVMSG_SOILM2_DATA_REQ -> TODO()
                     CrossDevicePackets.XDEVMSG_LIVE_SOILM2_DATA,
                     CrossDevicePackets.XDEVMSG_MAX_SOILM2_DATA,
                     CrossDevicePackets.XDEVMSG_MIN_SOILM2_DATA -> {
-                        dashboardCh.send(buffer)
+                        dashboardCh.send(byteBuf.toMutableList())
                     }
                     CrossDevicePackets.XDEVMSG_TEMP_THRSH_DAT_REQ -> TODO()
                     CrossDevicePackets.XDEVMSG_TEMP_THRSH_DAT -> TODO()
                     CrossDevicePackets.XDEVMSG_MULTI_PKT_REQUEST -> TODO()
                     CrossDevicePackets.XDEVMSG_MULTI_PKT_REQUEST_REPLY -> TODO()
-                    null -> TODO()
+                    null -> {}
                 }
             }
         }
