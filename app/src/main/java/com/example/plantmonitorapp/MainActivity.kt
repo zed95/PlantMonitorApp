@@ -290,25 +290,8 @@ fun SetupNewDevice(viewModel: BluetoothViewModel,
                 dialogTitle = "Device Connected",
                 dialogText = "Device successfully connected to the WiFi network",
                 icon = Icons.Default.CheckCircle)
-//                initNsdDiscoveryListener(context)
         }
-
     }
-
-//    ElevatedButton(
-//        colors = ButtonDefaults.elevatedButtonColors(containerColor = Color(0xFFCFD2CF), contentColor = Color.Black),
-//        elevation = ButtonDefaults.buttonElevation(10.dp),
-//        onClick = {
-//            if(setupState == DeviceSetupState.Idle)
-//            {
-//                setupState = DeviceSetupState.StartPairing
-//            }
-//                  },
-//
-//        )
-//    {
-//        Text("Add Plant Monitor")
-//    }
 
     ExtendedFloatingActionButton(
         icon = { Icon(Icons.Filled.Add, "Extended floating action button.") },

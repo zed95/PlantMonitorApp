@@ -15,9 +15,12 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowRight
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.SignalWifi4Bar
 import androidx.compose.material.icons.filled.SignalWifiBad
@@ -147,6 +150,11 @@ class EnvInfoElement(private val title: String,
     private var maxVal = mutableStateOf<Any>(0.0f)
     private var minVal = mutableStateOf<Any>(0.0f)
 
+    private var maxThImp = mutableStateOf<Any>(0.0f)
+    private var maxThAct = mutableStateOf<Any>(0.0f)
+    private var minThImp = mutableStateOf<Any>(0.0f)
+    private var minThAct = mutableStateOf<Any>(0.0f)
+
     @Composable
     fun ElementImplement()
     {
@@ -176,7 +184,7 @@ class EnvInfoElement(private val title: String,
                     {
                         Icon(
                             imageVector = icon,
-                            contentDescription = "Arrow",
+                            contentDescription = "Environmental Symbol",
                             tint = iconColor,
                             modifier = Modifier
                                 .size(50.dp)
@@ -184,7 +192,8 @@ class EnvInfoElement(private val title: String,
                         )
                     }
 
-                    Column(modifier = Modifier.fillMaxWidth())
+                    // Title and value representing current environmental metric
+                    Column(modifier = Modifier.width(150.dp))
                     {
                         Text(
                             text = title,
@@ -204,6 +213,50 @@ class EnvInfoElement(private val title: String,
                             color = CustomSilver,
                             fontSize = 30.sp,
                             modifier = Modifier.offset(x = 20.dp)
+                        )
+                    }
+
+                    Column(modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 5.dp)) {
+                        Text(
+                            text = (
+                                    when(val v = maxThAct.value)
+                                    {
+                                        is Float -> {"%.2f".format(v) + units}
+                                        else -> {"${v}$units"}
+                                    }),
+
+                            color = CustomSilver,
+                            fontSize = 15.sp,
+                        )
+
+                        Icon(
+                            imageVector = Icons.Filled.ArrowUpward,
+                            contentDescription = "Upper threshold",
+                            tint = iconColor,
+                            modifier = Modifier
+                                .size(15.dp)
+                        )
+
+                        Icon(
+                            imageVector = Icons.Filled.ArrowDownward,
+                            contentDescription = "Lower threshold",
+                            tint = iconColor,
+                            modifier = Modifier
+                                .size(15.dp)
+                        )
+
+                        Text(
+                            text = (
+                                    when(val v = minThAct.value)
+                                    {
+                                        is Float -> {"%.2f".format(v) + units}
+                                        else -> {"${v}$units"}
+                                    }),
+
+                            color = CustomSilver,
+                            fontSize = 15.sp,
                         )
                     }
                 }
@@ -235,6 +288,26 @@ class EnvInfoElement(private val title: String,
             {
                 minVal.value = Float.fromBits(dataBytes)
             }
+
+            4 ->
+            {
+                maxThImp.value = Float.fromBits(dataBytes)
+            }
+
+            5 ->
+            {
+                maxThAct.value = Float.fromBits(dataBytes)
+            }
+
+            6 ->
+            {
+                minThImp.value = Float.fromBits(dataBytes)
+            }
+
+            7 ->
+            {
+                minThAct.value = Float.fromBits(dataBytes)
+            }
         }
 
     }
@@ -260,11 +333,32 @@ class EnvInfoElement(private val title: String,
             {
                 minVal.value = value.toShort()
             }
+
+            4 ->
+            {
+                maxThImp.value = value.toShort()
+            }
+
+            5 ->
+            {
+                maxThAct.value = value.toShort()
+            }
+
+            6 ->
+            {
+                minThImp.value = value.toShort()
+            }
+
+            7 ->
+            {
+                minThAct.value = value.toShort()
+            }
         }
 
     }
 
     companion object {
+        // specifies which environmental data instance the packet belongs to
         fun getPktDestination(packet: List<Byte>): Int
         {
             var dst = -1
@@ -282,12 +376,21 @@ class EnvInfoElement(private val title: String,
                 CrossDevicePackets.XDEVMSG_CONNECT_NETWORK -> TODO()
                 CrossDevicePackets.XDEVMSG_CONNECT_STATUS -> TODO()
                 CrossDevicePackets.XDEVMSG_TEMP_DATA_REQ -> TODO()
+
+                CrossDevicePackets.XDEVMSG_MAX_T_ACT_IMP_TH,
+                CrossDevicePackets.XDEVMSG_MAX_T_ACT_TRIG_TH,
+                CrossDevicePackets.XDEVMSG_MIN_T_ACT_IMP_TH,
+                CrossDevicePackets.XDEVMSG_MIN_T_ACT_TRIG_TH,
                 CrossDevicePackets.XDEVMSG_LIVE_TEMP_DATA,
                 CrossDevicePackets.XDEVMSG_MAX_TEMP_DATA,
                 CrossDevicePackets.XDEVMSG_MIN_TEMP_DATA -> {
                     dst = 1
                 }
                 CrossDevicePackets.XDEVMSG_HUM_DATA_REQ -> TODO()
+                CrossDevicePackets.XDEVMSG_MAX_H_ACT_IMP_TH,
+                CrossDevicePackets.XDEVMSG_MAX_H_ACT_TRIG_TH,
+                CrossDevicePackets.XDEVMSG_MIN_H_ACT_IMP_TH,
+                CrossDevicePackets.XDEVMSG_MIN_H_ACT_TRIG_TH,
                 CrossDevicePackets.XDEVMSG_LIVE_HUM_DATA,
                 CrossDevicePackets.XDEVMSG_MAX_HUM_DATA,
                 CrossDevicePackets.XDEVMSG_MIN_HUM_DATA -> {
@@ -298,6 +401,10 @@ class EnvInfoElement(private val title: String,
                 CrossDevicePackets.XDEVMSG_MAX_LUX_DATA -> TODO()
                 CrossDevicePackets.XDEVMSG_MIN_LUX_DATA -> TODO()
                 CrossDevicePackets.XDEVMSG_SOILM1_DATA_REQ -> TODO()
+                CrossDevicePackets.XDEVMSG_MAX_SM1_ACT_IMP_TH,
+                CrossDevicePackets.XDEVMSG_MAX_SM1_ACT_TRIG_TH,
+                CrossDevicePackets.XDEVMSG_MIN_SM1_ACT_IMP_TH,
+                CrossDevicePackets.XDEVMSG_MIN_SM1_ACT_TRIG_TH,
                 CrossDevicePackets.XDEVMSG_LIVE_SOILM1_DATA,
                 CrossDevicePackets.XDEVMSG_MAX_SOILM1_DATA,
                 CrossDevicePackets.XDEVMSG_MIN_SOILM1_DATA -> {
@@ -315,12 +422,12 @@ class EnvInfoElement(private val title: String,
                 CrossDevicePackets.XDEVMSG_MULTI_PKT_REQUEST_REPLY -> TODO()
                 null ->
                 {}
-
             }
 
             return dst
         }
 
+        // specifies whether the information type is current value, min/max value, thresholds value ect
         fun getDataInfoType(packet: List<Byte>): Int
         {
             var type = -1
@@ -374,6 +481,30 @@ class EnvInfoElement(private val title: String,
                 CrossDevicePackets.XDEVMSG_TEMP_THRSH_DAT -> TODO()
                 CrossDevicePackets.XDEVMSG_MULTI_PKT_REQUEST -> TODO()
                 CrossDevicePackets.XDEVMSG_MULTI_PKT_REQUEST_REPLY -> TODO()
+
+                CrossDevicePackets.XDEVMSG_MAX_T_ACT_IMP_TH,
+                CrossDevicePackets.XDEVMSG_MAX_H_ACT_IMP_TH,
+                CrossDevicePackets.XDEVMSG_MAX_SM1_ACT_IMP_TH -> {
+                    type = 4
+                }
+
+                CrossDevicePackets.XDEVMSG_MAX_T_ACT_TRIG_TH,
+                CrossDevicePackets.XDEVMSG_MAX_H_ACT_TRIG_TH,
+                CrossDevicePackets.XDEVMSG_MAX_SM1_ACT_TRIG_TH -> {
+                    type = 5
+                }
+
+                CrossDevicePackets.XDEVMSG_MIN_T_ACT_IMP_TH,
+                CrossDevicePackets.XDEVMSG_MIN_H_ACT_IMP_TH,
+                CrossDevicePackets.XDEVMSG_MIN_SM1_ACT_IMP_TH -> {
+                    type = 6
+                }
+
+                CrossDevicePackets.XDEVMSG_MIN_T_ACT_TRIG_TH,
+                CrossDevicePackets.XDEVMSG_MIN_H_ACT_TRIG_TH,
+                CrossDevicePackets.XDEVMSG_MIN_SM1_ACT_TRIG_TH -> {
+                    type = 7
+                }
                 null -> {}
             }
 
