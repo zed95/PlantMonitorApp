@@ -5,6 +5,7 @@ import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothGattCallback
+import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattService
 import android.bluetooth.BluetoothProfile
 import android.bluetooth.BluetoothSocket
@@ -113,17 +114,25 @@ class AppBluetoothManager(val context: Context)
 
                 println("service: ${service?.uuid}")
                 println("characteristic: ${characteristic?.uuid}")
+                btDev = gatt.device
 
-                gatt.readCharacteristic(characteristic)
-                gatt.
-                // Access a characteristic that requires encryption
-//                val service = gatt.getService(YOUR_SECURE_SERVICE_UUID)
-//                val characteristic = service?.getCharacteristic(YOUR_SECURE_CHAR_UUID)
-//                characteristic?.let {
-//                    // This will trigger bonding if not already bonded
-//                    gatt.readCharacteristic(it)
-//                }
+                // check largest packet that can be sent
+                val GATT_MAX_MTU_SIZE = 517
+                gatt.requestMtu(GATT_MAX_MTU_SIZE)
+
+                // check for read/write property
+                val isWritable = characteristic?.properties?.and(BluetoothGattCharacteristic.PROPERTY_WRITE)
+                val isReadable = characteristic?.properties?.and(BluetoothGattCharacteristic.PROPERTY_READ)
+                if(isReadable != 0 && isWritable != 0)
+                {
+                    Log.w("Characteristic Properties", "characteristic readable and writeable")
+                }
             }
+
+        }
+
+        override fun onMtuChanged(gatt: BluetoothGatt?, mtu: Int, status: Int) {
+            Log.w("BluetoothGattCallback", "ATT MTU changed to $mtu, success: ${status == BluetoothGatt.GATT_SUCCESS}")
         }
     }
 
@@ -210,18 +219,6 @@ class AppBluetoothManager(val context: Context)
         return bytesRead
     }
 
-    // Compare selected bluetooth device and check the paired devices list to see if it's already bonded
-    @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
-    fun checkDeviceBonded(selectedDevice: BluetoothDevice?) : Boolean
-    {
-        val adapter: BluetoothAdapter = btManager.adapter
-        val bondedDevices: Set<BluetoothDevice>? = adapter.bondedDevices
-        val alreadyBonded = bondedDevices.orEmpty().any { it.address == selectedDevice?.address }
-
-        return alreadyBonded
-    }
-
-
     @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
     suspend fun connectPairedDev(): Boolean
     {
@@ -258,25 +255,6 @@ class AppBluetoothManager(val context: Context)
 
     @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
     suspend fun pairDevice(pairingLauncher: ActivityResultLauncher<IntentSenderRequest>): BondingStatus = suspendCancellableCoroutine { cont ->
-        bondReceiver = object : BroadcastReceiver()
-        {
-            @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
-            override fun onReceive(context: Context?, intent: Intent?) {
-                when (intent?.action) {
-                    BluetoothDevice.ACTION_BOND_STATE_CHANGED -> {
-                        val device = intent.getParcelableExtra<BluetoothDevice>(BluetoothDevice.EXTRA_DEVICE, BluetoothDevice::class.java)
-                        val bondState = intent.getIntExtra(BluetoothDevice.EXTRA_BOND_STATE, BluetoothDevice.BOND_NONE)
-                        if (bondState == BluetoothDevice.BOND_BONDED && device != null) {
-                            btDev = device
-                            println("MADE IT HERE 1")
-                            // stop listening for bluetooth broadcasts after device paired and uuid obtained
-                            context?.unregisterReceiver(this)
-                            cont.resume(BondingStatus.SUCCESS)
-                        }
-                    }
-                }
-            }
-        }
 
         // Register the receiver and launch pairing
         registerReceivers()
