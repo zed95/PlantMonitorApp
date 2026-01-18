@@ -40,6 +40,8 @@ import com.example.plantmonitorapp.calcChecksum
 import com.example.plantmonitorapp.msgConnectEsp32ToWifi
 import com.example.plantmonitorapp.msgRequestWifiConnectSts
 import com.example.plantmonitorapp.unstuffPacket
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -49,6 +51,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
@@ -56,6 +59,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 import java.io.IOException
 import java.util.UUID
 import java.util.concurrent.Executor
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.regex.Pattern
 import kotlin.coroutines.coroutineContext
 import kotlin.coroutines.resume
@@ -79,25 +83,29 @@ class AppBluetoothManager(val context: Context)
 {
     private var btDev: BluetoothDevice ?= null
     private var btGatt: BluetoothGatt? = null
+    private var wrtieCharacteristic: BluetoothGattCharacteristic? = null
+    private var service: BluetoothGattService? = null
     private lateinit var btSocket: BluetoothSocket
     private lateinit var uuid: UUID
-    private lateinit var bondReceiver: BroadcastReceiver
     val btManager: BluetoothManager = context.getSystemService(BluetoothManager::class.java)
 
     private val STATE_NOT_CONNECTED = 0
     private val STATE_DISCONNECTED = 1
     private val STATE_CONNECTED = 2
     var connectionState = MutableStateFlow(STATE_NOT_CONNECTED)
+    var bleConnectSignal = CompletableDeferred<BondingStatus>()
 
-    private val gattCallback = object: BluetoothGattCallback()
+    private var gattCallback = object: BluetoothGattCallback()
     {
         @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
         override fun onConnectionStateChange(gatt: BluetoothGatt?, status: Int, newState: Int) {
-            if (newState == BluetoothProfile.STATE_CONNECTED) {
+            if ((newState == BluetoothProfile.STATE_CONNECTED) && (gatt != null)) {
                 // successfully connected to the GATT Server
                 connectionState.value = STATE_CONNECTED
                 // Attempts to discover services after successful connection.
+                btGatt = gatt
                 btGatt?.discoverServices()
+
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                 // disconnected from the GATT Server
                 connectionState.value = STATE_DISCONNECTED
@@ -106,34 +114,141 @@ class AppBluetoothManager(val context: Context)
 
         @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
         override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
-            if (status == BluetoothGatt.GATT_SUCCESS) {
-                val serviceUuid: UUID = UUID.fromString("4fafc201-1fb5-459e-8fcc-c5c9c331914b")
-                val characteristicUuid = UUID.fromString("beb5483e-36e1-4688-b7f5-ea07361b26a8")
-                val service = gatt.services.firstOrNull { it.uuid == serviceUuid}
-                val characteristic = service?.characteristics?.firstOrNull { it.uuid == characteristicUuid}
 
-                println("service: ${service?.uuid}")
-                println("characteristic: ${characteristic?.uuid}")
-                btDev = gatt.device
-
-                // check largest packet that can be sent
-                val GATT_MAX_MTU_SIZE = 517
-                gatt.requestMtu(GATT_MAX_MTU_SIZE)
-
-                // check for read/write property
-                val isWritable = characteristic?.properties?.and(BluetoothGattCharacteristic.PROPERTY_WRITE)
-                val isReadable = characteristic?.properties?.and(BluetoothGattCharacteristic.PROPERTY_READ)
-                if(isReadable != 0 && isWritable != 0)
-                {
-                    Log.w("Characteristic Properties", "characteristic readable and writeable")
-                }
+            with(gatt)
+            {
+                Log.w("BluetoothGattCallback", "Discovered ${services.size} services for ${device.address}")
+                printGattTable()
             }
 
+            if (status == BluetoothGatt.GATT_SUCCESS) {
+                service = gatt.findService("4fafc201-1fb5-459e-8fcc-c5c9c331914b")
+
+                if(service != null)
+                {
+                    wrtieCharacteristic = gatt.findCharacteristic("18537c21-4807-45be-94f2-e55b4561b270", service!!)
+
+                    if(wrtieCharacteristic != null)
+                    {
+                        btDev = gatt.device
+                        // check largest packet that can be sent
+                        val GATT_MAX_MTU_SIZE = 517
+                        // Optional MTU request (non-blocking)
+                        gatt.requestMtu(GATT_MAX_MTU_SIZE)
+                        bleConnectSignal.complete(BondingStatus.SUCCESS)
+                    }
+                    else
+                    {
+                        bleConnectSignal.complete(BondingStatus.FAILED)
+                    }
+                }
+                else
+                {
+                    bleConnectSignal.complete(BondingStatus.FAILED)
+                }
+
+                if(wrtieCharacteristic == null)
+                {
+                    println("Write Characteristic in onDiscovered is null!")
+                }
+                else
+                {
+                    println("Write Characteristic in onDiscovered is NOT null!")
+                }
+            }
+            else
+            {
+                bleConnectSignal.complete(BondingStatus.FAILED)
+            }
         }
 
-        override fun onMtuChanged(gatt: BluetoothGatt?, mtu: Int, status: Int) {
-            Log.w("BluetoothGattCallback", "ATT MTU changed to $mtu, success: ${status == BluetoothGatt.GATT_SUCCESS}")
+    override fun onMtuChanged(gatt: BluetoothGatt?, mtu: Int, status: Int) {
+        Log.w("BluetoothGattCallback", "ATT MTU changed to $mtu, success: ${status == BluetoothGatt.GATT_SUCCESS}")
+    }
+
+    override fun onCharacteristicRead(
+        gatt: BluetoothGatt,
+        characteristic: BluetoothGattCharacteristic,
+        value: ByteArray,
+        status: Int
+    )
+    {
+        println("======Read response======")
+    }
+
+    private fun BluetoothGatt.printGattTable() {
+        if (services.isEmpty()) {
+            Log.i("printGattTable", "No service and characteristic available, call discoverServices() first?")
+            return
         }
+        services.forEach { service ->
+            val characteristicsTable = service.characteristics.joinToString(
+                separator = "n|--",
+                prefix = "|--"
+            ) { it.uuid.toString() }
+            Log.i("printGattTable", "nService ${service.uuid}nCharacteristics:n$characteristicsTable"
+            )
+        }
+    }
+
+    private fun BluetoothGatt.findCharacteristic(uuidStr: String, service: BluetoothGattService): BluetoothGattCharacteristic?
+    {
+        val characteristicUuid = UUID.fromString(uuidStr)
+        var foundCharacteristic: BluetoothGattCharacteristic? = null
+        if (!service.characteristics.isEmpty()) {
+            service.characteristics.forEach { characteristic ->
+                if(characteristic.uuid == characteristicUuid)
+                {
+                    foundCharacteristic = characteristic
+                }
+            }
+        }
+
+        return foundCharacteristic
+    }
+
+    private fun BluetoothGatt.findService(uuidStr: String): BluetoothGattService?
+    {
+        var foundService: BluetoothGattService? = null
+        val serviceUuid = UUID.fromString(uuidStr)
+        if (!services.isEmpty()) {
+            services.forEach { service ->
+                if(service.uuid == serviceUuid)
+                {
+                    foundService = service
+                }
+            }
+        }
+        return foundService
+    }
+}
+
+    @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
+    fun bleRead()
+    {
+        val serviceUuid: UUID = UUID.fromString("4fafc201-1fb5-459e-8fcc-c5c9c331914b")
+        val characteristicUuid = UUID.fromString("beb5483e-36e1-4688-b7f5-ea07361b26a8")
+
+        val readBle = btGatt?.getService(serviceUuid)?.getCharacteristic(characteristicUuid)
+        btGatt?.readCharacteristic(readBle)
+    }
+
+    @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
+    suspend fun bleWrite()
+    {
+        if(bleConnectSignal.await() == BondingStatus.FAILED)
+        {
+            println("Device Connect Failed!")
+        }
+        if(wrtieCharacteristic != null)
+        {
+            btGatt?.writeCharacteristic(wrtieCharacteristic!!, "Hello".toByteArray(), BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT)
+        }
+        else
+        {
+            println("Characteristic is null!")
+        }
+
     }
 
     // once bluetooth manager is not used anymore, clear information associated with old connection
@@ -141,21 +256,6 @@ class AppBluetoothManager(val context: Context)
     {
         btSocket.close()
         uuid = UUID.randomUUID()
-        unregisterReceivers()
-    }
-
-
-    fun registerReceivers() {
-        val filter = IntentFilter().apply {
-            addAction(BluetoothDevice.ACTION_BOND_STATE_CHANGED)
-            addAction(BluetoothDevice.ACTION_UUID)
-        }
-        context.registerReceiver(bondReceiver, filter)
-    }
-
-    fun unregisterReceivers()
-    {
-        context.unregisterReceiver(bondReceiver)
     }
 
     fun isBtEnabled(): Boolean {
@@ -254,45 +354,57 @@ class AppBluetoothManager(val context: Context)
     }
 
     @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
-    suspend fun pairDevice(pairingLauncher: ActivityResultLauncher<IntentSenderRequest>): BondingStatus = suspendCancellableCoroutine { cont ->
+    suspend fun pairDevice(pairingLauncher: ActivityResultLauncher<IntentSenderRequest>): BondingStatus
+    {
+        try
+        {
+            bleConnectSignal = CompletableDeferred()    // reset connect signal
+            val deviceFilter: BluetoothDeviceFilter = BluetoothDeviceFilter.Builder()
+                // Match only Bluetooth devices whose name matches the pattern.
+                .setNamePattern(Pattern.compile("PlantMon"))
+                .build()
+            val pairingRequest: AssociationRequest = AssociationRequest.Builder().addDeviceFilter(deviceFilter).build()
+            val deviceManager = context.getSystemService(COMPANION_DEVICE_SERVICE) as CompanionDeviceManager
+            val executor = Executor { it.run() }
+            val callback = object : CompanionDeviceManager.Callback() {
+                // Called when a device is found. Launch the IntentSender so the user
+                // can select the device they want to pair with.
+                override fun onAssociationPending(intentSender: IntentSender) {
+                    val request = IntentSenderRequest.Builder(intentSender).build()
+                    pairingLauncher.launch(request)
 
-        // Register the receiver and launch pairing
-        registerReceivers()
-        // If coroutine is cancelled, clean up receiver
-        cont.invokeOnCancellation { context.unregisterReceiver(bondReceiver) }
+                }
 
-        val deviceFilter: BluetoothDeviceFilter = BluetoothDeviceFilter.Builder()
-            // Match only Bluetooth devices whose name matches the pattern.
-            .setNamePattern(Pattern.compile("PlantMon"))
-            .build()
-        val pairingRequest: AssociationRequest = AssociationRequest.Builder().addDeviceFilter(deviceFilter).build()
-        val deviceManager = context.getSystemService(COMPANION_DEVICE_SERVICE) as CompanionDeviceManager
-        val executor = Executor { it.run() }
-        val callback = object : CompanionDeviceManager.Callback() {
-            // Called when a device is found. Launch the IntentSender so the user
-            // can select the device they want to pair with.
-            override fun onAssociationPending(intentSender: IntentSender) {
-                val request = IntentSenderRequest.Builder(intentSender).build()
-                pairingLauncher.launch(request)
+                @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
+                override fun onAssociationCreated(associationInfo: AssociationInfo) {
+                    btDev = associationInfo.associatedDevice?.bluetoothDevice
+                    // attempt to connect
+                    btGatt = btDev?.connectGatt(context, false, gattCallback)
+                }
 
+                override fun onFailure(errorMessage: CharSequence?) {
+                    // do nothing here
+                }
+
+                override fun onFailure(errorCode: Int, error: CharSequence?) {
+                    if((errorCode == CompanionDeviceManager.RESULT_USER_REJECTED) || (errorCode == CompanionDeviceManager.RESULT_CANCELED))
+                    {
+                        bleConnectSignal.complete(BondingStatus.DEVICE_SELECT_CANCELLED)
+                    }
+                }
             }
 
-            @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
-            override fun onAssociationCreated(associationInfo: AssociationInfo) {
-                btDev = associationInfo.associatedDevice?.bluetoothDevice
-
-                // attempt to connect
-                btGatt = btDev?.connectGatt(context, true, gattCallback)
-            }
-
-            override fun onFailure(errorMessage: CharSequence?) {
-                context.unregisterReceiver(bondReceiver)
-                // To handle the failure.
-                cont.resume(BondingStatus.DEVICE_SELECT_CANCELLED)
+            deviceManager.associate(pairingRequest, executor, callback)
+            return bleConnectSignal.await()
+        }
+        finally
+        {
+            coroutineContext.job.invokeOnCompletion {
+                if (it is CancellationException) {
+                    btGatt?.close()
+                }
             }
         }
-
-        deviceManager.associate(pairingRequest, executor, callback)
     }
 }
 
@@ -325,6 +437,11 @@ class BluetoothViewModel(context: Context) : ViewModel() {
         return btManager.send(msg)
     }
 
+    @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
+    fun write()
+    {
+//        btManager.bleWrite()
+    }
 
     @RequiresPermission(value = "android.permission.BLUETOOTH_CONNECT")
     fun startPairing(pairingLauncher: ActivityResultLauncher<IntentSenderRequest>) {
@@ -346,18 +463,9 @@ class BluetoothViewModel(context: Context) : ViewModel() {
                         }
                         BondingStatus.SUCCESS ->
                         {
-                            println("MADE IT HERE 2")
-                            _events.emit(BluetoothEvent.DeviceBonded)
-                            // Runs only after pairing is done
-                            if(btManager.connectPairedDev())
-                            {
-                                _events.emit(BluetoothEvent.ConnectionSuccess)
-                            }
-                            else
-                            {
-                                _events.emit(BluetoothEvent.ConnectionFailed)
-                            }
-
+                            _events.emit(BluetoothEvent.ConnectionSuccess)
+                            btManager.bleWrite()
+//                            write()
                         }
                     }
                 }
@@ -527,8 +635,7 @@ class BluetoothViewModel(context: Context) : ViewModel() {
 
     override fun onCleared() {
         super.onCleared()
-        // unregister receivers tied to activity to prevent memory leaks and errors associated with them
-        btManager.unregisterReceivers()
+
     }
 }
 
