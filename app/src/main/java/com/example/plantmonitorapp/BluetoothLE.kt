@@ -9,6 +9,7 @@ import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattService
 import android.bluetooth.BluetoothProfile
 import android.bluetooth.BluetoothSocket
+import android.bluetooth.BluetoothStatusCodes
 import android.companion.AssociationInfo
 import android.companion.AssociationRequest
 import android.companion.BluetoothDeviceFilter
@@ -83,7 +84,7 @@ class AppBluetoothManager(val context: Context)
 {
     private var btDev: BluetoothDevice ?= null
     private var btGatt: BluetoothGatt? = null
-    private var wrtieCharacteristic: BluetoothGattCharacteristic? = null
+    private var plantMonCharacteristic: BluetoothGattCharacteristic? = null
     private var service: BluetoothGattService? = null
     private lateinit var btSocket: BluetoothSocket
     private lateinit var uuid: UUID
@@ -94,6 +95,9 @@ class AppBluetoothManager(val context: Context)
     private val STATE_CONNECTED = 2
     var connectionState = MutableStateFlow(STATE_NOT_CONNECTED)
     var bleConnectSignal = CompletableDeferred<BondingStatus>()
+    var bleReadSignal = CompletableDeferred<Boolean>()
+
+    var buffer = ByteArray(512)
 
     private var gattCallback = object: BluetoothGattCallback()
     {
@@ -126,9 +130,9 @@ class AppBluetoothManager(val context: Context)
 
                 if(service != null)
                 {
-                    wrtieCharacteristic = gatt.findCharacteristic("18537c21-4807-45be-94f2-e55b4561b270", service!!)
+                    plantMonCharacteristic = gatt.findCharacteristic("18537c21-4807-45be-94f2-e55b4561b270", service!!)
 
-                    if(wrtieCharacteristic != null)
+                    if(plantMonCharacteristic != null)
                     {
                         btDev = gatt.device
                         // check largest packet that can be sent
@@ -147,7 +151,7 @@ class AppBluetoothManager(val context: Context)
                     bleConnectSignal.complete(BondingStatus.FAILED)
                 }
 
-                if(wrtieCharacteristic == null)
+                if(plantMonCharacteristic == null)
                 {
                     println("Write Characteristic in onDiscovered is null!")
                 }
@@ -173,7 +177,12 @@ class AppBluetoothManager(val context: Context)
         status: Int
     )
     {
-        println("======Read response======")
+        if(status == BluetoothGatt.GATT_SUCCESS)
+        {
+            bleReadSignal.complete(true)
+            buffer = value.copyOf()
+            println("======Read response======")
+        }
     }
 
     private fun BluetoothGatt.printGattTable() {
@@ -226,29 +235,52 @@ class AppBluetoothManager(val context: Context)
     @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
     fun bleRead()
     {
-        val serviceUuid: UUID = UUID.fromString("4fafc201-1fb5-459e-8fcc-c5c9c331914b")
-        val characteristicUuid = UUID.fromString("beb5483e-36e1-4688-b7f5-ea07361b26a8")
-
-        val readBle = btGatt?.getService(serviceUuid)?.getCharacteristic(characteristicUuid)
-        btGatt?.readCharacteristic(readBle)
+        btGatt?.readCharacteristic(plantMonCharacteristic)
     }
 
     @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
-    suspend fun bleWrite()
+    suspend fun bleWrite(msg: ByteArray): Int
     {
+        var statusCode: Int = BluetoothStatusCodes.ERROR_UNKNOWN
+
         if(bleConnectSignal.await() == BondingStatus.FAILED)
         {
             println("Device Connect Failed!")
         }
-        if(wrtieCharacteristic != null)
+        if(plantMonCharacteristic != null)
         {
-            btGatt?.writeCharacteristic(wrtieCharacteristic!!, "Hello".toByteArray(), BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT)
+            statusCode = btGatt!!.writeCharacteristic(plantMonCharacteristic!!, msg, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT)
         }
         else
         {
             println("Characteristic is null!")
         }
 
+        return statusCode
+    }
+
+    fun ProcessPacket()
+    {
+        var bufIdx = buffer.size
+
+        if((buffer[0] == SOP) && (buffer[buffer.lastIndex] == EOP))
+        {
+            // remove SOP and EOP and update size index
+            RemSopEop(buffer)
+            bufIdx = bufIdx - 2
+            // unstuff packet and assign unstuffed packet length to bufIdx
+            bufIdx = unstuffPacket(buffer, bufIdx)
+
+            // after unstuffing bufIdx (size of packet indicator) also carries error coding so check must be made
+            if(bufIdx >= 0)
+            {
+                if(calcChecksum(buffer, bufIdx) == 0.toByte())
+                {
+                    // do checksum recalculation to check for corruption
+                    readComplete = true
+                }
+            }
+        }
     }
 
     // once bluetooth manager is not used anymore, clear information associated with old connection
@@ -304,53 +336,19 @@ class AppBluetoothManager(val context: Context)
     {
         var bytesRead = 0
 
-        withContext(Dispatchers.IO) {
-            try {
-                val inputStream = btSocket.inputStream
-                if(inputStream.available() >= numBytes)
-                {
-                    bytesRead = inputStream.read(msgBytesDst,idx,numBytes)
-                }
-            } catch (e: IOException) {
-                e.printStackTrace()
-            }
-        }
-
-        return bytesRead
-    }
-
-    @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
-    suspend fun connectPairedDev(): Boolean
-    {
-        var connectSts = false
-//        if(connectionState.value == STATE_CONNECTED)
-//        {
-//            connectSts = true
-//        }
-//        else
-//        {
-//            // reset to not connected state
-//            connectionState.value = STATE_NOT_CONNECTED
-//
+//        withContext(Dispatchers.IO) {
 //            try {
-//                withContext(Dispatchers.IO) {
-//                    // attempt to connect
-//                    btGatt = btDev?.connectGatt(context, true, gattCallback)
-//                    // suspend until state changes
-//                    connectionState.filter{it == STATE_CONNECTED || it == STATE_DISCONNECTED}.first()
-//
-//                    if(connectionState.value == STATE_CONNECTED)
-//                    {
-//                        connectSts = true
-//                    }
+//                val inputStream = btSocket.inputStream
+//                if(inputStream.available() >= numBytes)
+//                {
+//                    bytesRead = inputStream.read(msgBytesDst,idx,numBytes)
 //                }
-//                // success
-//            } catch (e: IllegalArgumentException) {
+//            } catch (e: IOException) {
 //                e.printStackTrace()
 //            }
 //        }
 
-        return connectSts
+        return bytesRead
     }
 
     @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
@@ -464,8 +462,6 @@ class BluetoothViewModel(context: Context) : ViewModel() {
                         BondingStatus.SUCCESS ->
                         {
                             _events.emit(BluetoothEvent.ConnectionSuccess)
-                            btManager.bleWrite()
-//                            write()
                         }
                     }
                 }
@@ -486,11 +482,16 @@ class BluetoothViewModel(context: Context) : ViewModel() {
         }
     }
 
+    @RequiresPermission(value = "android.permission.BLUETOOTH_CONNECT")
     suspend fun waitForWifiConnection(): Boolean {
         return withTimeoutOrNull(10_000) { // 10 seconds
+            btManager.bleRead()
             while (true) {
-                if (getDeviceWifiConnectSts()) {
-                    return@withTimeoutOrNull true
+                if(btManager.bleReadSignal.await())
+                {
+                    if (getDeviceWifiConnectSts()) {
+                        return@withTimeoutOrNull true
+                    }
                 }
                 delay(500) // poll every second
             }
@@ -606,6 +607,7 @@ class BluetoothViewModel(context: Context) : ViewModel() {
         return readComplete
     }
 
+    @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
     fun deviceWifiConnectSequence(ssid: String, password: String)
     {
         // launch coroutine
@@ -614,7 +616,7 @@ class BluetoothViewModel(context: Context) : ViewModel() {
             // run this inside IO coroutine context since we're dealing with bluetooth socket
             withContext(Dispatchers.IO)
             {
-                if(btSend(msgConnectEsp32ToWifi(ssid, password)))
+                if(btManager.bleWrite(msgConnectEsp32ToWifi(ssid, password)) == BluetoothStatusCodes.SUCCESS)
                 {
                     if(waitForWifiConnection())
                     {
