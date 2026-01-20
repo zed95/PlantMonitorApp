@@ -6,6 +6,7 @@ import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothGattCallback
 import android.bluetooth.BluetoothGattCharacteristic
+import android.bluetooth.BluetoothGattDescriptor
 import android.bluetooth.BluetoothGattService
 import android.bluetooth.BluetoothProfile
 import android.bluetooth.BluetoothSocket
@@ -135,6 +136,13 @@ class AppBluetoothManager(val context: Context)
                     if(plantMonCharacteristic != null)
                     {
                         btDev = gatt.device
+
+                        gatt.setCharacteristicNotification(plantMonCharacteristic, true)
+                        val cccdUuid = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
+                        val descriptor = plantMonCharacteristic!!.getDescriptor(cccdUuid)
+                        gatt.writeDescriptor(descriptor, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)
+
+
                         // check largest packet that can be sent
                         val GATT_MAX_MTU_SIZE = 517
                         // Optional MTU request (non-blocking)
@@ -179,9 +187,33 @@ class AppBluetoothManager(val context: Context)
     {
         if(status == BluetoothGatt.GATT_SUCCESS)
         {
-            bleReadSignal.complete(true)
             buffer = value.copyOf()
             println("======Read response======")
+        }
+    }
+
+    override fun onCharacteristicChanged(
+        gatt: BluetoothGatt,
+        characteristic: BluetoothGattCharacteristic,
+        value: ByteArray
+    ) {
+        buffer = value.copyOf()
+        ProcessPacket()
+        println("======Read response======")
+    }
+
+    override fun onDescriptorWrite(
+        gatt: BluetoothGatt?,
+        descriptor: BluetoothGattDescriptor?,
+        status: Int
+    ) {
+        if(status == BluetoothGatt.GATT_SUCCESS)
+        {
+            println("Write to descriptor Successful!")
+        }
+        else
+        {
+            println("Write to descriptor NOT Successful!")
         }
     }
 
@@ -276,8 +308,17 @@ class AppBluetoothManager(val context: Context)
             {
                 if(calcChecksum(buffer, bufIdx) == 0.toByte())
                 {
-                    // do checksum recalculation to check for corruption
-                    readComplete = true
+                    if(buffer[0] == REQUEST_RSP_ESP32_WIFI_STS)
+                    {
+                        if(buffer[5] == 7.toByte())
+                        {
+                            bleReadSignal.complete(true)
+                        }
+                        else
+                        {
+                            bleReadSignal.complete(false)
+                        }
+                    }
                 }
             }
         }
@@ -485,13 +526,14 @@ class BluetoothViewModel(context: Context) : ViewModel() {
     @RequiresPermission(value = "android.permission.BLUETOOTH_CONNECT")
     suspend fun waitForWifiConnection(): Boolean {
         return withTimeoutOrNull(10_000) { // 10 seconds
-            btManager.bleRead()
             while (true) {
                 if(btManager.bleReadSignal.await())
                 {
-                    if (getDeviceWifiConnectSts()) {
-                        return@withTimeoutOrNull true
-                    }
+                    return@withTimeoutOrNull true
+                }
+                else
+                {
+                    return@withTimeoutOrNull false
                 }
                 delay(500) // poll every second
             }
