@@ -1,7 +1,6 @@
 import android.Manifest
 import android.app.Service
 import android.bluetooth.BluetoothManager
-import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothGattCallback
@@ -9,21 +8,17 @@ import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattDescriptor
 import android.bluetooth.BluetoothGattService
 import android.bluetooth.BluetoothProfile
-import android.bluetooth.BluetoothSocket
 import android.bluetooth.BluetoothStatusCodes
 import android.companion.AssociationInfo
 import android.companion.AssociationRequest
 import android.companion.BluetoothDeviceFilter
 import android.companion.CompanionDeviceManager
-import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Context.COMPANION_DEVICE_SERVICE
 import android.content.Intent
-import android.content.IntentFilter
 import android.content.IntentSender
 import android.os.Binder
 import android.os.IBinder
-import android.os.ParcelUuid
 import android.util.Log
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.IntentSenderRequest
@@ -40,7 +35,6 @@ import com.example.plantmonitorapp.RemSopEop
 import com.example.plantmonitorapp.SOP
 import com.example.plantmonitorapp.calcChecksum
 import com.example.plantmonitorapp.msgConnectEsp32ToWifi
-import com.example.plantmonitorapp.msgRequestWifiConnectSts
 import com.example.plantmonitorapp.unstuffPacket
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
@@ -48,23 +42,15 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
-import kotlinx.coroutines.flow.filter
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
-import java.io.IOException
 import java.util.UUID
 import java.util.concurrent.Executor
-import java.util.concurrent.atomic.AtomicBoolean
 import java.util.regex.Pattern
 import kotlin.coroutines.coroutineContext
-import kotlin.coroutines.resume
 
 
 enum class xDevCommPacketReadState {
@@ -87,17 +73,9 @@ class AppBluetoothManager(val context: Context)
     private var btGatt: BluetoothGatt? = null
     private var plantMonCharacteristic: BluetoothGattCharacteristic? = null
     private var service: BluetoothGattService? = null
-    private lateinit var btSocket: BluetoothSocket
-    private lateinit var uuid: UUID
     val btManager: BluetoothManager = context.getSystemService(BluetoothManager::class.java)
-
-    private val STATE_NOT_CONNECTED = 0
-    private val STATE_DISCONNECTED = 1
-    private val STATE_CONNECTED = 2
-    var connectionState = MutableStateFlow(STATE_NOT_CONNECTED)
     var bleConnectSignal = CompletableDeferred<BondingStatus>()
     var bleReadSignal = CompletableDeferred<Boolean>()
-
     var buffer = ByteArray(512)
 
     private var gattCallback = object: BluetoothGattCallback()
@@ -105,15 +83,13 @@ class AppBluetoothManager(val context: Context)
         @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
         override fun onConnectionStateChange(gatt: BluetoothGatt?, status: Int, newState: Int) {
             if ((newState == BluetoothProfile.STATE_CONNECTED) && (gatt != null)) {
-                // successfully connected to the GATT Server
-                connectionState.value = STATE_CONNECTED
                 // Attempts to discover services after successful connection.
                 btGatt = gatt
                 btGatt?.discoverServices()
 
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                 // disconnected from the GATT Server
-                connectionState.value = STATE_DISCONNECTED
+                bleConnectSignal.complete(BondingStatus.FAILED)
             }
         }
 
@@ -135,13 +111,11 @@ class AppBluetoothManager(val context: Context)
 
                     if(plantMonCharacteristic != null)
                     {
-                        btDev = gatt.device
-
+                        // Enable Notifications capability (allows plant monitor to notify app with data causing onCharacteristicChanged callback to be triggered)
                         gatt.setCharacteristicNotification(plantMonCharacteristic, true)
                         val cccdUuid = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
                         val descriptor = plantMonCharacteristic!!.getDescriptor(cccdUuid)
                         gatt.writeDescriptor(descriptor, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)
-
 
                         // check largest packet that can be sent
                         val GATT_MAX_MTU_SIZE = 517
@@ -158,15 +132,6 @@ class AppBluetoothManager(val context: Context)
                 {
                     bleConnectSignal.complete(BondingStatus.FAILED)
                 }
-
-                if(plantMonCharacteristic == null)
-                {
-                    println("Write Characteristic in onDiscovered is null!")
-                }
-                else
-                {
-                    println("Write Characteristic in onDiscovered is NOT null!")
-                }
             }
             else
             {
@@ -174,95 +139,93 @@ class AppBluetoothManager(val context: Context)
             }
         }
 
-    override fun onMtuChanged(gatt: BluetoothGatt?, mtu: Int, status: Int) {
-        Log.w("BluetoothGattCallback", "ATT MTU changed to $mtu, success: ${status == BluetoothGatt.GATT_SUCCESS}")
-    }
+        override fun onMtuChanged(gatt: BluetoothGatt?, mtu: Int, status: Int) {
+            Log.w("BluetoothGattCallback", "ATT MTU changed to $mtu, success: ${status == BluetoothGatt.GATT_SUCCESS}")
+        }
 
-    override fun onCharacteristicRead(
-        gatt: BluetoothGatt,
-        characteristic: BluetoothGattCharacteristic,
-        value: ByteArray,
-        status: Int
-    )
-    {
-        if(status == BluetoothGatt.GATT_SUCCESS)
+        override fun onCharacteristicRead(
+            gatt: BluetoothGatt,
+            characteristic: BluetoothGattCharacteristic,
+            value: ByteArray,
+            status: Int
+        )
         {
+            if(status == BluetoothGatt.GATT_SUCCESS)
+            {
+                buffer = value.copyOf()
+                println("======Read response======")
+            }
+        }
+
+        override fun onCharacteristicChanged(
+            gatt: BluetoothGatt,
+            characteristic: BluetoothGattCharacteristic,
+            value: ByteArray
+        ) {
             buffer = value.copyOf()
-            println("======Read response======")
+            ProcessPacket()
         }
-    }
 
-    override fun onCharacteristicChanged(
-        gatt: BluetoothGatt,
-        characteristic: BluetoothGattCharacteristic,
-        value: ByteArray
-    ) {
-        buffer = value.copyOf()
-        ProcessPacket()
-        println("======Read response======")
-    }
-
-    override fun onDescriptorWrite(
-        gatt: BluetoothGatt?,
-        descriptor: BluetoothGattDescriptor?,
-        status: Int
-    ) {
-        if(status == BluetoothGatt.GATT_SUCCESS)
-        {
-            println("Write to descriptor Successful!")
-        }
-        else
-        {
-            println("Write to descriptor NOT Successful!")
-        }
-    }
-
-    private fun BluetoothGatt.printGattTable() {
-        if (services.isEmpty()) {
-            Log.i("printGattTable", "No service and characteristic available, call discoverServices() first?")
-            return
-        }
-        services.forEach { service ->
-            val characteristicsTable = service.characteristics.joinToString(
-                separator = "n|--",
-                prefix = "|--"
-            ) { it.uuid.toString() }
-            Log.i("printGattTable", "nService ${service.uuid}nCharacteristics:n$characteristicsTable"
-            )
-        }
-    }
-
-    private fun BluetoothGatt.findCharacteristic(uuidStr: String, service: BluetoothGattService): BluetoothGattCharacteristic?
-    {
-        val characteristicUuid = UUID.fromString(uuidStr)
-        var foundCharacteristic: BluetoothGattCharacteristic? = null
-        if (!service.characteristics.isEmpty()) {
-            service.characteristics.forEach { characteristic ->
-                if(characteristic.uuid == characteristicUuid)
-                {
-                    foundCharacteristic = characteristic
-                }
+        override fun onDescriptorWrite(
+            gatt: BluetoothGatt?,
+            descriptor: BluetoothGattDescriptor?,
+            status: Int
+        ) {
+            if(status == BluetoothGatt.GATT_SUCCESS)
+            {
+                println("Write to descriptor Successful!")
+            }
+            else
+            {
+                println("Write to descriptor NOT Successful!")
             }
         }
 
-        return foundCharacteristic
-    }
-
-    private fun BluetoothGatt.findService(uuidStr: String): BluetoothGattService?
-    {
-        var foundService: BluetoothGattService? = null
-        val serviceUuid = UUID.fromString(uuidStr)
-        if (!services.isEmpty()) {
+        private fun BluetoothGatt.printGattTable() {
+            if (services.isEmpty()) {
+                Log.i("printGattTable", "No service and characteristic available, call discoverServices() first?")
+                return
+            }
             services.forEach { service ->
-                if(service.uuid == serviceUuid)
-                {
-                    foundService = service
-                }
+                val characteristicsTable = service.characteristics.joinToString(
+                    separator = "n|--",
+                    prefix = "|--"
+                ) { it.uuid.toString() }
+                Log.i("printGattTable", "nService ${service.uuid}nCharacteristics:n$characteristicsTable"
+                )
             }
         }
-        return foundService
+
+        private fun BluetoothGatt.findCharacteristic(uuidStr: String, service: BluetoothGattService): BluetoothGattCharacteristic?
+        {
+            val characteristicUuid = UUID.fromString(uuidStr)
+            var foundCharacteristic: BluetoothGattCharacteristic? = null
+            if (!service.characteristics.isEmpty()) {
+                service.characteristics.forEach { characteristic ->
+                    if(characteristic.uuid == characteristicUuid)
+                    {
+                        foundCharacteristic = characteristic
+                    }
+                }
+            }
+            return foundCharacteristic
+        }
+
+        private fun BluetoothGatt.findService(uuidStr: String): BluetoothGattService?
+        {
+            var foundService: BluetoothGattService? = null
+            val serviceUuid = UUID.fromString(uuidStr)
+            if (!services.isEmpty()) {
+                services.forEach { service ->
+                    if(service.uuid == serviceUuid)
+                    {
+                        foundService = service
+                    }
+                }
+            }
+            return foundService
+        }
     }
-}
 
     @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
     fun bleRead()
@@ -270,6 +233,14 @@ class AppBluetoothManager(val context: Context)
         btGatt?.readCharacteristic(plantMonCharacteristic)
     }
 
+
+    /*
+    * TO-DO
+    *
+    * THIS NEEDS REDOING BECAUSE IT RELIES ON THE CONNECTION SIGNAL TO  CONTINUE.
+    * THERE SHOULD BE ANOTHER MECHANISM BEFORE TO CHECK IF THE CONNECTION IS OKAY OR NOT
+    *
+    * */
     @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
     suspend fun bleWrite(msg: ByteArray): Int
     {
@@ -295,6 +266,7 @@ class AppBluetoothManager(val context: Context)
     {
         var bufIdx = buffer.size
 
+        // check for packet SOP and EOP markers
         if((buffer[0] == SOP) && (buffer[buffer.lastIndex] == EOP))
         {
             // remove SOP and EOP and update size index
@@ -327,69 +299,11 @@ class AppBluetoothManager(val context: Context)
     // once bluetooth manager is not used anymore, clear information associated with old connection
     fun bluetoothConnectionCleanup()
     {
-        btSocket.close()
-        uuid = UUID.randomUUID()
+
     }
 
     fun isBtEnabled(): Boolean {
         return btManager.adapter.isEnabled
-    }
-
-
-    suspend fun send(msg: ByteArray): Boolean
-    {
-        var result = false
-
-        withContext(Dispatchers.IO) {
-            try {
-                val outputStream = btSocket.outputStream
-                outputStream.write(msg)
-                outputStream.flush()
-                result = true
-            } catch (e: IOException) {
-                e.printStackTrace()
-            }
-        }
-
-        return result
-    }
-
-    suspend fun read(msgBytes: ByteArray): Int
-    {
-        var bytesRead = 0
-
-        withContext(Dispatchers.IO) {
-            try {
-                val inputStream = btSocket.inputStream
-                if(inputStream.available() > 0)
-                {
-                    bytesRead = inputStream.read(msgBytes,0,1)
-                }
-            } catch (e: IOException) {
-                e.printStackTrace()
-            }
-        }
-
-        return bytesRead
-    }
-
-    suspend fun readBytes(msgBytesDst: ByteArray, idx: Int, numBytes: Int): Int
-    {
-        var bytesRead = 0
-
-//        withContext(Dispatchers.IO) {
-//            try {
-//                val inputStream = btSocket.inputStream
-//                if(inputStream.available() >= numBytes)
-//                {
-//                    bytesRead = inputStream.read(msgBytesDst,idx,numBytes)
-//                }
-//            } catch (e: IOException) {
-//                e.printStackTrace()
-//            }
-//        }
-
-        return bytesRead
     }
 
     @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
@@ -447,7 +361,6 @@ class AppBluetoothManager(val context: Context)
     }
 }
 
-
 sealed class BluetoothEvent {
 
     object RequestBluetoothEnable: BluetoothEvent()
@@ -470,17 +383,6 @@ class BluetoothViewModel(context: Context) : ViewModel() {
 
     private val _events = MutableSharedFlow<BluetoothEvent>()
     val events = _events.asSharedFlow()
-
-    suspend fun btSend(msg: ByteArray): Boolean
-    {
-        return btManager.send(msg)
-    }
-
-    @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
-    fun write()
-    {
-//        btManager.bleWrite()
-    }
 
     @RequiresPermission(value = "android.permission.BLUETOOTH_CONNECT")
     fun startPairing(pairingLauncher: ActivityResultLauncher<IntentSenderRequest>) {
@@ -523,6 +425,12 @@ class BluetoothViewModel(context: Context) : ViewModel() {
         }
     }
 
+    /*
+    * TO-DO
+    *
+    * try removing the delay and the false that give warnings and see if the function still works
+    * okay
+    * */
     @RequiresPermission(value = "android.permission.BLUETOOTH_CONNECT")
     suspend fun waitForWifiConnection(): Boolean {
         return withTimeoutOrNull(10_000) { // 10 seconds
@@ -540,113 +448,6 @@ class BluetoothViewModel(context: Context) : ViewModel() {
             // Not reachable
             false
         } ?: false
-    }
-
-    // attempts to send request for wifi connect status from plant monitor and then listens for response
-    // done as if the size fo the response is variable.
-    suspend fun getDeviceWifiConnectSts(): Boolean
-    {
-        var buffer = ByteArray(512)
-        var connected = false
-
-//        if(btSend(msgRequestWifiConnectSts()))
-//        {
-        delay(500)
-        if(readPacket(buffer))
-        {
-            // received packet is connect sts and sts is connected (== 7)
-            // packet has SOP/EOP removed and has been ustuffed at this point
-            if(buffer[0] == REQUEST_RSP_ESP32_WIFI_STS && buffer[5] == 7.toByte())
-            {
-                connected = true
-            }
-        }
-//        }
-
-        return connected
-    }
-
-
-    // add timeout mechanism to this function
-    suspend fun readPacket(buffer: ByteArray): Boolean
-    {
-        var packetReadState = xDevCommPacketReadState.WAIT_FOR_SOP
-        var readComplete = false
-        var bufIdx = 0
-        var payloadSize = 0
-
-        while(!readComplete && coroutineContext.isActive)
-        {
-            when(packetReadState)
-            {
-                xDevCommPacketReadState.WAIT_FOR_SOP ->
-                {
-                    if((btManager.readBytes(buffer, bufIdx, 1) == 1))
-                    {
-                        // proceed to next stage when SOP is found
-                        if(buffer[bufIdx] == SOP)
-                        {
-                            bufIdx++
-                            packetReadState = xDevCommPacketReadState.READ_HEADER
-                        }
-                    }
-                }
-                xDevCommPacketReadState.READ_HEADER -> {
-                    if((btManager.readBytes(buffer, bufIdx, 5) == 5))
-                    {
-                        // point to the payload size bytes
-                        bufIdx++
-                        // convert payload size bytes to payload size value
-//                        payloadSize = bytesToInt(buffer, bufIdx)
-                        payloadSize = buffer[bufIdx].toInt()
-                        println("Payload Size: $payloadSize")
-                        // point to dst of payload data
-                        bufIdx += Int.SIZE_BYTES
-                        packetReadState = xDevCommPacketReadState.READ_PAYLOAD
-                    }
-                }
-                xDevCommPacketReadState.READ_PAYLOAD ->
-                {
-                    if((btManager.readBytes(buffer, bufIdx, payloadSize) == payloadSize))
-                    {
-                        bufIdx += payloadSize
-                        packetReadState = xDevCommPacketReadState.WAIT_EOP
-                    }
-                }
-                xDevCommPacketReadState.WAIT_EOP ->
-                {
-                    if((btManager.readBytes(buffer, bufIdx, 1) == 1))
-                    {
-                        // proceed to next stage when SOP is found
-                        if(buffer[bufIdx] == EOP)
-                        {
-                            bufIdx++
-                            packetReadState = xDevCommPacketReadState.VALIDATE
-                        }
-                    }
-                }
-                xDevCommPacketReadState.VALIDATE ->
-                {
-                    // remove SOP and EOP and update size index
-                    RemSopEop(buffer)
-                    bufIdx = bufIdx - 2
-                    // unstuff packet and assign unstuffed packet length to bufIdx
-                    bufIdx = unstuffPacket(buffer, bufIdx)
-
-                    // after unstuffing bufIdx (size of packet indicator) also carries error coding so check must be made
-                    if(bufIdx >= 0)
-                    {
-                        if(calcChecksum(buffer, bufIdx) == 0.toByte())
-                        {
-                            // do checksum recalculation to check for corruption
-                            readComplete = true
-                        }
-                    }
-                }
-            }
-        }
-
-        return readComplete
     }
 
     @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
