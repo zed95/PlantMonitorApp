@@ -90,6 +90,7 @@ class AppBluetoothManager(val context: Context)
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                 // disconnected from the GATT Server
                 bleConnectSignal.complete(BondingStatus.FAILED)
+                println("Lost Connection To Gatt Server!!")
             }
         }
 
@@ -234,22 +235,12 @@ class AppBluetoothManager(val context: Context)
     }
 
 
-    /*
-    * TO-DO
-    *
-    * THIS NEEDS REDOING BECAUSE IT RELIES ON THE CONNECTION SIGNAL TO  CONTINUE.
-    * THERE SHOULD BE ANOTHER MECHANISM BEFORE TO CHECK IF THE CONNECTION IS OKAY OR NOT
-    *
-    * */
+
     @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
-    suspend fun bleWrite(msg: ByteArray): Int
+    fun bleWrite(msg: ByteArray): Int
     {
         var statusCode: Int = BluetoothStatusCodes.ERROR_UNKNOWN
 
-        if(bleConnectSignal.await() == BondingStatus.FAILED)
-        {
-            println("Device Connect Failed!")
-        }
         if(plantMonCharacteristic != null)
         {
             statusCode = btGatt!!.writeCharacteristic(plantMonCharacteristic!!, msg, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT)
@@ -425,28 +416,17 @@ class BluetoothViewModel(context: Context) : ViewModel() {
         }
     }
 
-    /*
-    * TO-DO
-    *
-    * try removing the delay and the false that give warnings and see if the function still works
-    * okay
-    * */
     @RequiresPermission(value = "android.permission.BLUETOOTH_CONNECT")
     suspend fun waitForWifiConnection(): Boolean {
         return withTimeoutOrNull(10_000) { // 10 seconds
-            while (true) {
-                if(btManager.bleReadSignal.await())
-                {
-                    return@withTimeoutOrNull true
-                }
-                else
-                {
-                    return@withTimeoutOrNull false
-                }
-                delay(500) // poll every second
+            if(btManager.bleReadSignal.await())
+            {
+                return@withTimeoutOrNull true
             }
-            // Not reachable
-            false
+            else
+            {
+                return@withTimeoutOrNull false
+            }
         } ?: false
     }
 
