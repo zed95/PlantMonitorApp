@@ -129,6 +129,7 @@ enum class DeviceSetupState {
     SendWifiCredentials,
     RemoteDevWifiConnectSuccess,
     RemoteDevWifiConnectFailed,
+    LostConnectionWithBleDevice,
 }
 
 lateinit var appContext: Context
@@ -209,7 +210,6 @@ fun SetupNewDevice(viewModel: BluetoothViewModel,
                     pairingLauncher: ActivityResultLauncher<IntentSenderRequest>)
 {
     val context = LocalContext.current
-    val isPairing = viewModel.isPairing
     var subSsid by remember { mutableStateOf("") }
     var subPassword by remember { mutableStateOf("") }
     var setupState by rememberSaveable { mutableStateOf(DeviceSetupState.Idle) }
@@ -288,8 +288,15 @@ fun SetupNewDevice(viewModel: BluetoothViewModel,
         {
             InfoDialog(onConfirmation = {setupState = DeviceSetupState.Idle},
                 dialogTitle = "Device Connected",
-                dialogText = "Device successfully connected to the WiFi network",
+                dialogText = "Device successfully connected to the WiFi network.",
                 icon = Icons.Default.CheckCircle)
+        }
+        DeviceSetupState.LostConnectionWithBleDevice ->
+        {
+            InfoDialog(onConfirmation = {setupState = DeviceSetupState.Idle},
+                dialogTitle = "Connection Lost",
+                dialogText = "Lost bluetooth connection to the device. Retry pairing with the device again.",
+                icon = Icons.Default.Error)
         }
     }
 
@@ -305,16 +312,6 @@ fun SetupNewDevice(viewModel: BluetoothViewModel,
             }
         },
     )
-
-    if (isPairing) {
-        // Loading spinner overlay
-        CircularProgressIndicator(
-            modifier = Modifier.width(64.dp),
-            color = MaterialTheme.colorScheme.secondary,
-            trackColor = MaterialTheme.colorScheme.surfaceVariant,
-        )
-    }
-
 
     // One-time Toasts
     LaunchedEffect(Unit) {
@@ -335,6 +332,7 @@ fun SetupNewDevice(viewModel: BluetoothViewModel,
                 BluetoothEvent.ConnectionFailed -> setupState = DeviceSetupState.ConnectionFailed
                 BluetoothEvent.RemoteDeviceWifiConnectFailed -> setupState = DeviceSetupState.RemoteDevWifiConnectFailed
                 BluetoothEvent.RemoteDeviceWifiConnectSuccess -> setupState = DeviceSetupState.RemoteDevWifiConnectSuccess
+                BluetoothEvent.LostConnectionWithBleDevice -> setupState = DeviceSetupState.LostConnectionWithBleDevice
             }
         }
     }
