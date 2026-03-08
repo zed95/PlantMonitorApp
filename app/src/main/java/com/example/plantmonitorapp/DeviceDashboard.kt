@@ -365,7 +365,7 @@ class EnvInfoElement(private val title: String,
             println("PACKET ID: ${packet[0].toInt()}")
             when(CrossDevicePackets.fromId(packet[0].toInt()))
             {
-                CrossDevicePackets.XDEVMSG_PLANT_MON_CONNECT_STS_RSP ->
+                CrossDevicePackets.XDEVMSG_RSP_CONNECT_STS ->
                 {
                     devicePingSts = ConnectionAliveSts.RSP_RECEIVED
                 }
@@ -434,7 +434,7 @@ class EnvInfoElement(private val title: String,
 
             when(CrossDevicePackets.fromId(packet[0].toInt()))
             {
-                CrossDevicePackets.XDEVMSG_PLANT_MON_CONNECT_STS_RSP ->
+                CrossDevicePackets.XDEVMSG_RSP_CONNECT_STS ->
                 {
                     devicePingSts = ConnectionAliveSts.RSP_RECEIVED
                 }

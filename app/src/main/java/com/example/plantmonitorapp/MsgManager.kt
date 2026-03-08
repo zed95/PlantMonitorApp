@@ -11,11 +11,10 @@ const val ESCAPE_STUFF: Byte = 0x5D
 const val  NON_SOP_BYTE: Byte = 0x7E
 const val  NON_EOP_BYTE: Byte = 0x7F
 const val NON_ESCAPE_BYTE: Byte = 0x7D
-const val wifiConnect: Byte = 0x01    // connect to wifi command identifier
-const val REQUEST_ESP32_WIFI_STS: Byte = 0x02
-const val REQUEST_RSP_ESP32_WIFI_STS: Byte = 0x03
+const val XDVEMSG_WIFI_CONNECT: Byte = 100    // connect to wifi command identifier
+const val XDEVMSG_RSP_ESP32_WIFI_STS: Byte = 101
 
-const val REQUEST_CONNECT_STS: Byte = 0x04
+const val XDEVMSG_REQUEST_CONNECT_STS: Byte = 102
 const val RSP_CONNECT_STS: Byte = 0x05
 // destuffing error codes
 const val ERR_BUF_OVERFLOW: Byte =   -2
@@ -38,36 +37,12 @@ fun msgConnectEsp32ToWifi(ssid: String, password: String): ByteArray
     val payloadSizeBytes = ByteBuffer.allocate(4).putInt(payloadSize).array().toList()
     var checksum: Byte = 0
 
-    msg.add(wifiConnect)
+    msg.add(XDVEMSG_WIFI_CONNECT)
     msg.addAll(payloadSizeBytes)
     msg.addAll(ssidSizeBytes)
     msg.addAll(passwordSizeBytes)
     msg.addAll(ssid.toByteArray().toList())
     msg.addAll(password.toByteArray().toList())
-    // get checksum for header and payload bytes and add to packet
-    checksum = calcChecksum(msg.toByteArray(), msg.size)
-    msg.add(checksum)
-
-    // stuff ID, Payload, Checksum
-    stuffedMsg.addAll(stuffPacket(msg.toByteArray(), msg.size).toList())
-    // add SOP and EOP
-    stuffedMsg.add(0, SOP) // insert SOP at beginning of list
-    stuffedMsg.add(EOP) // add end of packet identifier
-
-    return stuffedMsg.toByteArray()
-}
-
-fun msgRequestWifiConnectSts(): ByteArray
-{
-    val msg = mutableListOf<Byte>()
-    val numChecksumLenBytes = Byte.SIZE_BYTES
-    val payloadSize =  numChecksumLenBytes
-    val payloadSizeBytes = ByteBuffer.allocate(4).putInt(payloadSize).array().toList()
-    val stuffedMsg = mutableListOf<Byte>()
-    var checksum: Byte = 0
-
-    msg.add(REQUEST_ESP32_WIFI_STS)
-    msg.addAll(payloadSizeBytes)
     // get checksum for header and payload bytes and add to packet
     checksum = calcChecksum(msg.toByteArray(), msg.size)
     msg.add(checksum)
@@ -230,7 +205,7 @@ fun PktConnectSts(): ByteArray
     var checksum: Byte = 0;
     val stuffedMsg = mutableListOf<Byte>()
 
-    tmpBuf.add(REQUEST_CONNECT_STS)
+    tmpBuf.add(XDEVMSG_REQUEST_CONNECT_STS)
     tmpBuf.addAll(payloadSizeBytes)
     checksum = calcChecksum(tmpBuf.toByteArray(), tmpBuf.size)
     tmpBuf.add(checksum)

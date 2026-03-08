@@ -23,9 +23,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.plantmonitorapp.EOP
-import com.example.plantmonitorapp.REQUEST_RSP_ESP32_WIFI_STS
 import com.example.plantmonitorapp.RemSopEop
 import com.example.plantmonitorapp.SOP
+import com.example.plantmonitorapp.XDEVMSG_RSP_ESP32_WIFI_STS
 import com.example.plantmonitorapp.calcChecksum
 import com.example.plantmonitorapp.msgConnectEsp32ToWifi
 import com.example.plantmonitorapp.unstuffPacket
@@ -402,7 +402,7 @@ class AppBluetoothManager(val context: Context)
             {
                 if(calcChecksum(buffer, packetLen) == 0.toByte())
                 {
-                    if(buffer[0] == REQUEST_RSP_ESP32_WIFI_STS)
+                    if(buffer[0] == XDEVMSG_RSP_ESP32_WIFI_STS)
                     {
                         if(buffer[5] == 7.toByte())
                         {

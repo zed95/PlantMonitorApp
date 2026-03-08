@@ -37,7 +37,7 @@ enum class ConnectionAliveSts
 
 enum class CrossDevicePackets(val id: Int) {
 
-    XDEVMSG_PLANT_MON_CONNECT_STS_RSP(5),
+    XDEVMSG_RSP_CONNECT_STS(103),
     XDEVMSG_START(20),
     XDEVMSG_WIFI_SSID(XDEVMSG_START.id),
     XDEVMSG_WIFI_PSWD(21),
@@ -305,7 +305,7 @@ object SocketManager: ViewModel()
                 // determine message type
                 when(CrossDevicePackets.fromId(byteBuf[0].toInt()))
                 {
-                    CrossDevicePackets.XDEVMSG_PLANT_MON_CONNECT_STS_RSP ->
+                    CrossDevicePackets.XDEVMSG_RSP_CONNECT_STS ->
                     {
                         devicePingSts = ConnectionAliveSts.RSP_RECEIVED
                     }
