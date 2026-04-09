@@ -1,6 +1,4 @@
 package com.example.plantmonitorapp
-import BluetoothViewModel
-import BluetoothViewModelFactory
 import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context

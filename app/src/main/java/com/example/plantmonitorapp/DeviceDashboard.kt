@@ -371,9 +371,6 @@ class EnvInfoElement(private val title: String,
                 }
 
                 CrossDevicePackets.XDEVMSG_START -> TODO()
-                CrossDevicePackets.XDEVMSG_WIFI_SSID -> TODO()
-                CrossDevicePackets.XDEVMSG_WIFI_PSWD -> TODO()
-                CrossDevicePackets.XDEVMSG_CONNECT_NETWORK -> TODO()
                 CrossDevicePackets.XDEVMSG_CONNECT_STATUS -> TODO()
                 CrossDevicePackets.XDEVMSG_TEMP_DATA_REQ -> TODO()
 
@@ -396,10 +393,6 @@ class EnvInfoElement(private val title: String,
                 CrossDevicePackets.XDEVMSG_MIN_HUM_DATA -> {
                     dst = 2
                 }
-                CrossDevicePackets.XDEVMSG_LUX_DATA_REQ -> TODO()
-                CrossDevicePackets.XDEVMSG_LIVE_LUX_DATA -> TODO()
-                CrossDevicePackets.XDEVMSG_MAX_LUX_DATA -> TODO()
-                CrossDevicePackets.XDEVMSG_MIN_LUX_DATA -> TODO()
                 CrossDevicePackets.XDEVMSG_SOILM1_DATA_REQ -> TODO()
                 CrossDevicePackets.XDEVMSG_MAX_SM1_ACT_IMP_TH,
                 CrossDevicePackets.XDEVMSG_MAX_SM1_ACT_TRIG_TH,
@@ -418,10 +411,10 @@ class EnvInfoElement(private val title: String,
                 }
                 CrossDevicePackets.XDEVMSG_TEMP_THRSH_DAT_REQ -> TODO()
                 CrossDevicePackets.XDEVMSG_TEMP_THRSH_DAT -> TODO()
-                CrossDevicePackets.XDEVMSG_MULTI_PKT_REQUEST -> TODO()
-                CrossDevicePackets.XDEVMSG_MULTI_PKT_REQUEST_REPLY -> TODO()
                 null ->
                 {}
+
+                else -> {}
             }
 
             return dst
@@ -465,22 +458,13 @@ class EnvInfoElement(private val title: String,
 
 
                 CrossDevicePackets.XDEVMSG_START -> TODO()
-                CrossDevicePackets.XDEVMSG_WIFI_SSID -> TODO()
-                CrossDevicePackets.XDEVMSG_WIFI_PSWD -> TODO()
-                CrossDevicePackets.XDEVMSG_CONNECT_NETWORK -> TODO()
                 CrossDevicePackets.XDEVMSG_CONNECT_STATUS -> TODO()
                 CrossDevicePackets.XDEVMSG_TEMP_DATA_REQ -> TODO()
                 CrossDevicePackets.XDEVMSG_HUM_DATA_REQ -> TODO()
-                CrossDevicePackets.XDEVMSG_LUX_DATA_REQ -> TODO()
-                CrossDevicePackets.XDEVMSG_LIVE_LUX_DATA -> TODO()
-                CrossDevicePackets.XDEVMSG_MAX_LUX_DATA -> TODO()
-                CrossDevicePackets.XDEVMSG_MIN_LUX_DATA -> TODO()
                 CrossDevicePackets.XDEVMSG_SOILM1_DATA_REQ -> TODO()
                 CrossDevicePackets.XDEVMSG_SOILM2_DATA_REQ -> TODO()
                 CrossDevicePackets.XDEVMSG_TEMP_THRSH_DAT_REQ -> TODO()
                 CrossDevicePackets.XDEVMSG_TEMP_THRSH_DAT -> TODO()
-                CrossDevicePackets.XDEVMSG_MULTI_PKT_REQUEST -> TODO()
-                CrossDevicePackets.XDEVMSG_MULTI_PKT_REQUEST_REPLY -> TODO()
 
                 CrossDevicePackets.XDEVMSG_MAX_T_ACT_IMP_TH,
                 CrossDevicePackets.XDEVMSG_MAX_H_ACT_IMP_TH,
@@ -506,6 +490,7 @@ class EnvInfoElement(private val title: String,
                     type = 7
                 }
                 null -> {}
+                else -> {}
             }
 
             return type

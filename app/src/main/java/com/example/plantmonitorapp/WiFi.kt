@@ -2,14 +2,10 @@ package com.example.plantmonitorapp
 
 import android.net.nsd.NsdServiceInfo
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.lifecycle.LiveData
-import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import com.example.plantmonitorapp.SocketManager.packetChannel
-import com.example.plantmonitorapp.SocketManager.socket
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
@@ -18,7 +14,6 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
-import java.io.PrintWriter
 import java.net.Socket
 
 enum class DeviceConnectionSts {
@@ -250,6 +245,7 @@ object SocketManager: ViewModel()
             // checksum checks out
             if(calcChecksum(byteBuf, bufSize) == 0.toByte())
             {
+                XDevMessageBroker.onRawMessage()
                 dashboardCh.send(byteBuf.toMutableList())
 
 

@@ -1,3 +1,5 @@
+package com.example.plantmonitorapp
+
 import android.Manifest
 import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothDevice
@@ -22,13 +24,6 @@ import androidx.annotation.RequiresPermission
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.example.plantmonitorapp.EOP
-import com.example.plantmonitorapp.RemSopEop
-import com.example.plantmonitorapp.SOP
-import com.example.plantmonitorapp.XDEVMSG_RSP_ESP32_WIFI_STS
-import com.example.plantmonitorapp.calcChecksum
-import com.example.plantmonitorapp.msgConnectEsp32ToWifi
-import com.example.plantmonitorapp.unstuffPacket
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope

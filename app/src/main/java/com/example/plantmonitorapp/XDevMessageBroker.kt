@@ -5,6 +5,9 @@ import com.example.plantmonitorapp.SocketManager.devicePingSts
 import com.example.plantmonitorapp.SocketManager.isActive
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
 
 enum class CrossDevicePackets(val id: Int) {
@@ -51,25 +54,15 @@ enum class CrossDevicePackets(val id: Int) {
     }
 }
 
-fun translateMessage() = CoroutineScope(Dispatchers.IO).launch()
+object XDevMessageBroker
 {
-    // isActive somes from wifi. I need to find way for wifi to signal when this entity should start
-    // working without having a global being shared from the wifi file. Maybe this should be an
-    // extension or tied to the wifi viewmodel somewhow. Need to figure out how to architect this
-    // and keep it conditionally running while wifi viewmodel operates and manages connection
-    // and disconnection.
-    while (isActive)
+    private val  _messages = MutableSharedFlow<List<Byte>>()
+    val messages = _messages.asSharedFlow()
+
+    suspend fun onRawMessage(msg: MutableList<Byte>)
     {
-
-
-        // here the broker should receive broadcast messages from wifi
-
-
-
-
-
         // determine message type
-        when(CrossDevicePackets.fromId(byteBuf[0].toInt()))
+        when(CrossDevicePackets.fromId(msg[0].toInt()))
         {
             CrossDevicePackets.XDEVMSG_RSP_CONNECT_STS ->
             {
@@ -121,9 +114,40 @@ fun translateMessage() = CoroutineScope(Dispatchers.IO).launch()
             }
 
             CrossDevicePackets.XDEVMSG_RECURR_EVNT_REQUEST -> TODO()
-            CrossDevicePackets.XDEVMSG_ENV_METRICS -> TODO()
+            CrossDevicePackets.XDEVMSG_ENV_METRICS -> unpackEnvMetrics(msg)
             null -> {}
         }
+
     }
 
+    fun unpackEnvMetrics(msg: MutableList<Byte>)
+    {
+        val tempDataMsg = BrokerMessage.EnvMetricTemp(
+            current = msg[5].toFloat(),
+            high = msg[5].toFloat(),
+            low = msg[5].toFloat()
+            // this won't work becuase it uses only a single byte
+            // not to convert using 4 bytes
+        )
+    }
+
+}
+
+sealed class BrokerMessage
+{
+    data class EnvMetricTemp(val current: Float,
+                             val high: Float,
+                             val low: Float) : BrokerMessage()
+
+    data class EnvMetricHum(val current: Float,
+                            val high: Float,
+                            val low: Float) : BrokerMessage()
+
+    data class EnvMetricSoilM1(val current: UShort,
+                               val high: UShort,
+                               val low: UShort) : BrokerMessage()
+
+    data class EnvMetricSoilM2(val current: UShort,
+                               val high: UShort,
+                               val low: UShort) : BrokerMessage()
 }
