@@ -56,7 +56,7 @@ enum class CrossDevicePackets(val id: Int) {
 
 object XDevMessageBroker
 {
-    private val  _messages = MutableSharedFlow<List<Byte>>()
+    private val  _messages = MutableSharedFlow<BrokerMessage>()
     val messages = _messages.asSharedFlow()
 
     suspend fun onRawMessage(msg: MutableList<Byte>)
@@ -120,15 +120,52 @@ object XDevMessageBroker
 
     }
 
-    fun unpackEnvMetrics(msg: MutableList<Byte>)
+    suspend fun unpackEnvMetrics(msg: MutableList<Byte>)
     {
+
         val tempDataMsg = BrokerMessage.EnvMetricTemp(
-            current = msg[5].toFloat(),
-            high = msg[5].toFloat(),
-            low = msg[5].toFloat()
-            // this won't work becuase it uses only a single byte
-            // not to convert using 4 bytes
+            current = bytesToFloat(msg, 5),
+            high = bytesToFloat(msg, 9),
+            low = bytesToFloat(msg, 13)
         )
+        _messages.emit(tempDataMsg)
+
+        val humDataMsg = BrokerMessage.EnvMetricHum(
+            current = bytesToFloat(msg, 17),
+            high = bytesToFloat(msg, 21),
+            low = bytesToFloat(msg, 25)
+        )
+        _messages.emit(humDataMsg)
+
+        val soilM1Msg = BrokerMessage.EnvMetricSoilM1(
+            current = bytesToUshort(msg, 29),
+            high =  bytesToUshort(msg, 31),
+            low = bytesToUshort(msg, 33)
+        )
+        _messages.emit(soilM1Msg)
+
+        val soilM2Msg = BrokerMessage.EnvMetricSoilM2(
+            current = bytesToUshort(msg, 35),
+            high =  bytesToUshort(msg, 37),
+            low = bytesToUshort(msg, 39)
+        )
+        _messages.emit(soilM2Msg)
+
+    }
+
+    fun bytesToFloat(msg: MutableList<Byte>, idx: Int): Float
+    {
+        val data32 = (msg[idx].toInt() and 0xFF)              or
+                     ((msg[idx + 1].toInt() and 0xFF) shl 8)  or
+                     ((msg[idx + 2].toInt() and 0xFF) shl 16) or
+                     ((msg[idx + 3].toInt() and 0xFF) shl 24)
+        return Float.fromBits(data32)
+    }
+
+    fun bytesToUshort(msg: MutableList<Byte>, idx: Int): UShort
+    {
+        val data16 = (msg[idx].toInt() and 0xFF) or ((msg[idx + 1].toInt() and 0xFF) shl 8)
+        return data16.toUShort()
     }
 
 }
