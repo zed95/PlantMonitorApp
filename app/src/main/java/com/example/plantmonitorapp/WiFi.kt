@@ -245,7 +245,7 @@ object SocketManager: ViewModel()
             // checksum checks out
             if(calcChecksum(byteBuf, bufSize) == 0.toByte())
             {
-                XDevMessageBroker.onRawMessage()
+                XDevMessageBroker.onRawMessage(byteBuf.toMutableList())
                 dashboardCh.send(byteBuf.toMutableList())
 
 

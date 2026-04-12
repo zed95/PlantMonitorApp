@@ -81,8 +81,8 @@ fun DeviceDashboard(serviceViewModel: ServiceViewModel)
         {
         }
 
-        SocketManager.dashboardPktFlow.collect { chPacket ->
-            packet = chPacket
+        XDevMessageBroker.messages.collect { msg ->
+//            packet = chPacket
             dst = EnvInfoElement.getPktDestination(packet)
             type = EnvInfoElement.getDataInfoType(packet)
             when(dst)
@@ -107,6 +107,12 @@ fun DeviceDashboard(serviceViewModel: ServiceViewModel)
 
                 }
             }
+
+//            when(msg)
+//            {
+//                is BrokerMessage.EnvMetricTemp ->
+//            }
+
         }
     }
     // This places the button in the center of the screen
