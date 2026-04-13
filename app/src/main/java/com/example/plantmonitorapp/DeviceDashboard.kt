@@ -68,9 +68,9 @@ fun DeviceDashboard(serviceViewModel: ServiceViewModel)
     var packet = listOf<Byte>()
     var dst = -1
     var type = -1
-    val temp = remember {EnvInfoElement("Temperature", Icons.Filled.Thermostat, Color(0xFFFF7070), "\u2103")}
-    val hum = remember {EnvInfoElement("Humidity", Icons.Filled.Cloud, Color(0xFF68ADFF), "%")}
-    val moist = remember { EnvInfoElement("Soil Moisture", Icons.Filled.WaterDrop, Color(0xFF003FFF), "%") }
+    val temp = remember {EnvInfoElement<Float>("Temperature", Icons.Filled.Thermostat, Color(0xFFFF7070), "\u2103")}
+    val hum = remember {EnvInfoElement<Float>("Humidity", Icons.Filled.Cloud, Color(0xFF68ADFF), "%")}
+    val moist = remember { EnvInfoElement<Short>("Soil Moisture", Icons.Filled.WaterDrop, Color(0xFF003FFF), "%") }
     val name = serviceViewModel.selectedDevice.serviceName
 
 
@@ -82,36 +82,10 @@ fun DeviceDashboard(serviceViewModel: ServiceViewModel)
         }
 
         XDevMessageBroker.messages.collect { msg ->
-//            packet = chPacket
-            dst = EnvInfoElement.getPktDestination(packet)
-            type = EnvInfoElement.getDataInfoType(packet)
-            when(dst)
+            when(msg)
             {
-                1 ->
-                {
-                    temp.UpdateVal(packet, type)
-                }
-
-                2 ->
-                {
-                    hum.UpdateVal(packet, type)
-                }
-
-                3 ->
-                {
-                    moist.UpdateValShort(packet, type)
-                }
-
-                4 ->
-                {
-
-                }
+                is BrokerMessage.EnvMetricTemp -> temp.updateEnvMetrics(msg.current, msg.high, msg.low)
             }
-
-//            when(msg)
-//            {
-//                is BrokerMessage.EnvMetricTemp ->
-//            }
 
         }
     }
@@ -145,21 +119,21 @@ fun DeviceDashBaordName(name: String)
     }
 }
 
-class EnvInfoElement(private val title: String,
+class EnvInfoElement<T>(private val title: String,
                      private val icon: ImageVector,
                      private val iconColor: Color,
                      private val units: String,
 )
 {
 
-    private var currentVal = mutableStateOf<Any>(0.0f)
-    private var maxVal = mutableStateOf<Any>(0.0f)
-    private var minVal = mutableStateOf<Any>(0.0f)
+    private var currentVal = mutableStateOf<T?>(null)
+    private var maxVal = mutableStateOf<T?>(null)
+    private var minVal = mutableStateOf<T?>(null)
 
-    private var maxThImp = mutableStateOf<Any>(0.0f)
-    private var maxThAct = mutableStateOf<Any>(0.0f)
-    private var minThImp = mutableStateOf<Any>(0.0f)
-    private var minThAct = mutableStateOf<Any>(0.0f)
+    private var maxThImp = mutableStateOf<T?>(null)
+    private var maxThAct = mutableStateOf<T?>(null)
+    private var minThImp = mutableStateOf<T?>(null)
+    private var minThAct = mutableStateOf<T?>(null)
 
     @Composable
     fun ElementImplement()
@@ -270,238 +244,19 @@ class EnvInfoElement(private val title: String,
         }
     }
 
-    fun UpdateVal(pkt: List<Byte>, pktInfoType: Int)
+    fun updateEnvMetrics(current: T, max: T, min: T)
     {
-        val dataBytes = (pkt[5].toInt() and 0xFF)        or
-                ((pkt[6].toInt() and 0xFF) shl 8)  or
-                ((pkt[7].toInt() and 0xFF) shl 16) or
-                ((pkt[8].toInt() and 0xFF) shl 24)
-
-
-        when(pktInfoType)
-        {
-            1 ->
-            {
-                currentVal.value = Float.fromBits(dataBytes)
-            }
-
-            2 ->
-            {
-                maxVal.value = Float.fromBits(dataBytes)
-            }
-
-            3 ->
-            {
-                minVal.value = Float.fromBits(dataBytes)
-            }
-
-            4 ->
-            {
-                maxThImp.value = Float.fromBits(dataBytes)
-            }
-
-            5 ->
-            {
-                maxThAct.value = Float.fromBits(dataBytes)
-            }
-
-            6 ->
-            {
-                minThImp.value = Float.fromBits(dataBytes)
-            }
-
-            7 ->
-            {
-                minThAct.value = Float.fromBits(dataBytes)
-            }
-        }
-
+        currentVal.value = current
+        maxVal.value = max
+        minVal.value = min
     }
 
-    fun UpdateValShort(pkt: List<Byte>, pktInfoType: Int)
+    fun updateThresholds()
     {
-        val value = (pkt[5].toInt() and 0xFF) or ((pkt[6].toInt() and 0xFF) shl 8)
-
-
-        when(pktInfoType)
-        {
-            1 ->
-            {
-                currentVal.value = value.toShort()
-            }
-
-            2 ->
-            {
-                maxVal.value = value.toShort()
-            }
-
-            3 ->
-            {
-                minVal.value = value.toShort()
-            }
-
-            4 ->
-            {
-                maxThImp.value = value.toShort()
-            }
-
-            5 ->
-            {
-                maxThAct.value = value.toShort()
-            }
-
-            6 ->
-            {
-                minThImp.value = value.toShort()
-            }
-
-            7 ->
-            {
-                minThAct.value = value.toShort()
-            }
-        }
 
     }
 
-    companion object {
-        // specifies which environmental data instance the packet belongs to
-        fun getPktDestination(packet: List<Byte>): Int
-        {
-            var dst = -1
-            println("PACKET ID: ${packet[0].toInt()}")
-            when(CrossDevicePackets.fromId(packet[0].toInt()))
-            {
-                CrossDevicePackets.XDEVMSG_RSP_CONNECT_STS ->
-                {
-                    devicePingSts = ConnectionAliveSts.RSP_RECEIVED
-                }
 
-                CrossDevicePackets.XDEVMSG_START -> TODO()
-                CrossDevicePackets.XDEVMSG_CONNECT_STATUS -> TODO()
-                CrossDevicePackets.XDEVMSG_TEMP_DATA_REQ -> TODO()
-
-                CrossDevicePackets.XDEVMSG_MAX_T_ACT_IMP_TH,
-                CrossDevicePackets.XDEVMSG_MAX_T_ACT_TRIG_TH,
-                CrossDevicePackets.XDEVMSG_MIN_T_ACT_IMP_TH,
-                CrossDevicePackets.XDEVMSG_MIN_T_ACT_TRIG_TH,
-                CrossDevicePackets.XDEVMSG_LIVE_TEMP_DATA,
-                CrossDevicePackets.XDEVMSG_MAX_TEMP_DATA,
-                CrossDevicePackets.XDEVMSG_MIN_TEMP_DATA -> {
-                    dst = 1
-                }
-                CrossDevicePackets.XDEVMSG_HUM_DATA_REQ -> TODO()
-                CrossDevicePackets.XDEVMSG_MAX_H_ACT_IMP_TH,
-                CrossDevicePackets.XDEVMSG_MAX_H_ACT_TRIG_TH,
-                CrossDevicePackets.XDEVMSG_MIN_H_ACT_IMP_TH,
-                CrossDevicePackets.XDEVMSG_MIN_H_ACT_TRIG_TH,
-                CrossDevicePackets.XDEVMSG_LIVE_HUM_DATA,
-                CrossDevicePackets.XDEVMSG_MAX_HUM_DATA,
-                CrossDevicePackets.XDEVMSG_MIN_HUM_DATA -> {
-                    dst = 2
-                }
-                CrossDevicePackets.XDEVMSG_SOILM1_DATA_REQ -> TODO()
-                CrossDevicePackets.XDEVMSG_MAX_SM1_ACT_IMP_TH,
-                CrossDevicePackets.XDEVMSG_MAX_SM1_ACT_TRIG_TH,
-                CrossDevicePackets.XDEVMSG_MIN_SM1_ACT_IMP_TH,
-                CrossDevicePackets.XDEVMSG_MIN_SM1_ACT_TRIG_TH,
-                CrossDevicePackets.XDEVMSG_LIVE_SOILM1_DATA,
-                CrossDevicePackets.XDEVMSG_MAX_SOILM1_DATA,
-                CrossDevicePackets.XDEVMSG_MIN_SOILM1_DATA -> {
-                    dst = 3
-                }
-                CrossDevicePackets.XDEVMSG_SOILM2_DATA_REQ -> TODO()
-                CrossDevicePackets.XDEVMSG_LIVE_SOILM2_DATA,
-                CrossDevicePackets.XDEVMSG_MAX_SOILM2_DATA,
-                CrossDevicePackets.XDEVMSG_MIN_SOILM2_DATA -> {
-                    dst = 4
-                }
-                CrossDevicePackets.XDEVMSG_TEMP_THRSH_DAT_REQ -> TODO()
-                CrossDevicePackets.XDEVMSG_TEMP_THRSH_DAT -> TODO()
-                null ->
-                {}
-
-                else -> {}
-            }
-
-            return dst
-        }
-
-        // specifies whether the information type is current value, min/max value, thresholds value ect
-        fun getDataInfoType(packet: List<Byte>): Int
-        {
-            var type = -1
-
-            when(CrossDevicePackets.fromId(packet[0].toInt()))
-            {
-                CrossDevicePackets.XDEVMSG_RSP_CONNECT_STS ->
-                {
-                    devicePingSts = ConnectionAliveSts.RSP_RECEIVED
-                }
-
-                CrossDevicePackets.XDEVMSG_LIVE_TEMP_DATA,
-                CrossDevicePackets.XDEVMSG_LIVE_HUM_DATA,
-                CrossDevicePackets.XDEVMSG_LIVE_SOILM1_DATA,
-                CrossDevicePackets.XDEVMSG_LIVE_SOILM2_DATA ->
-                {
-                    type = 1
-                }
-
-                CrossDevicePackets.XDEVMSG_MAX_TEMP_DATA,
-                CrossDevicePackets.XDEVMSG_MAX_HUM_DATA,
-                CrossDevicePackets.XDEVMSG_MAX_SOILM1_DATA,
-                CrossDevicePackets.XDEVMSG_MAX_SOILM2_DATA ->
-                {
-                    type = 2
-                }
-
-
-                CrossDevicePackets.XDEVMSG_MIN_TEMP_DATA,
-                CrossDevicePackets.XDEVMSG_MIN_HUM_DATA,
-                CrossDevicePackets.XDEVMSG_MIN_SOILM1_DATA,
-                CrossDevicePackets.XDEVMSG_MIN_SOILM2_DATA -> {
-                    type = 3
-                }
-
-
-                CrossDevicePackets.XDEVMSG_START -> TODO()
-                CrossDevicePackets.XDEVMSG_CONNECT_STATUS -> TODO()
-                CrossDevicePackets.XDEVMSG_TEMP_DATA_REQ -> TODO()
-                CrossDevicePackets.XDEVMSG_HUM_DATA_REQ -> TODO()
-                CrossDevicePackets.XDEVMSG_SOILM1_DATA_REQ -> TODO()
-                CrossDevicePackets.XDEVMSG_SOILM2_DATA_REQ -> TODO()
-                CrossDevicePackets.XDEVMSG_TEMP_THRSH_DAT_REQ -> TODO()
-                CrossDevicePackets.XDEVMSG_TEMP_THRSH_DAT -> TODO()
-
-                CrossDevicePackets.XDEVMSG_MAX_T_ACT_IMP_TH,
-                CrossDevicePackets.XDEVMSG_MAX_H_ACT_IMP_TH,
-                CrossDevicePackets.XDEVMSG_MAX_SM1_ACT_IMP_TH -> {
-                    type = 4
-                }
-
-                CrossDevicePackets.XDEVMSG_MAX_T_ACT_TRIG_TH,
-                CrossDevicePackets.XDEVMSG_MAX_H_ACT_TRIG_TH,
-                CrossDevicePackets.XDEVMSG_MAX_SM1_ACT_TRIG_TH -> {
-                    type = 5
-                }
-
-                CrossDevicePackets.XDEVMSG_MIN_T_ACT_IMP_TH,
-                CrossDevicePackets.XDEVMSG_MIN_H_ACT_IMP_TH,
-                CrossDevicePackets.XDEVMSG_MIN_SM1_ACT_IMP_TH -> {
-                    type = 6
-                }
-
-                CrossDevicePackets.XDEVMSG_MIN_T_ACT_TRIG_TH,
-                CrossDevicePackets.XDEVMSG_MIN_H_ACT_TRIG_TH,
-                CrossDevicePackets.XDEVMSG_MIN_SM1_ACT_TRIG_TH -> {
-                    type = 7
-                }
-                null -> {}
-                else -> {}
-            }
-
-            return type
-        }
-    }
 }
 
 @Composable
