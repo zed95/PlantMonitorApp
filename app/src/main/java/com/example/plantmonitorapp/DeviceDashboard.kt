@@ -70,7 +70,8 @@ fun DeviceDashboard(serviceViewModel: ServiceViewModel)
     var type = -1
     val temp = remember {EnvInfoElement<Float>("Temperature", Icons.Filled.Thermostat, Color(0xFFFF7070), "\u2103")}
     val hum = remember {EnvInfoElement<Float>("Humidity", Icons.Filled.Cloud, Color(0xFF68ADFF), "%")}
-    val moist = remember { EnvInfoElement<Short>("Soil Moisture", Icons.Filled.WaterDrop, Color(0xFF003FFF), "%") }
+    val moist1 = remember { EnvInfoElement<UShort>("Soil Moisture 1", Icons.Filled.WaterDrop, Color(0xFF003FFF), "%") }
+    val moist2 = remember { EnvInfoElement<UShort>("Soil Moisture 2", Icons.Filled.WaterDrop, Color(0xFF003FFF), "%") }
     val name = serviceViewModel.selectedDevice.serviceName
 
 
@@ -85,6 +86,9 @@ fun DeviceDashboard(serviceViewModel: ServiceViewModel)
             when(msg)
             {
                 is BrokerMessage.EnvMetricTemp -> temp.updateEnvMetrics(msg.current, msg.high, msg.low)
+                is BrokerMessage.EnvMetricHum -> hum.updateEnvMetrics(msg.current, msg.high, msg.low)
+                is BrokerMessage.EnvMetricSoilM1 -> moist1.updateEnvMetrics(msg.current, msg.high, msg.low)
+                is BrokerMessage.EnvMetricSoilM2 -> moist2.updateEnvMetrics(msg.current, msg.high, msg.low)
             }
 
         }
@@ -98,7 +102,8 @@ fun DeviceDashboard(serviceViewModel: ServiceViewModel)
         TopPanel(name)
         temp.ElementImplement()
         hum.ElementImplement()
-        moist.ElementImplement()
+        moist1.ElementImplement()
+        moist2.ElementImplement()
     }
 
 
@@ -251,9 +256,12 @@ class EnvInfoElement<T>(private val title: String,
         minVal.value = min
     }
 
-    fun updateThresholds()
+    fun updateThresholds(maxAct: T, maxImp: T, minAct: T, minImp: T)
     {
-
+        maxThAct.value = maxAct
+        maxThImp.value = maxImp
+        minThAct.value = minAct
+        minThImp.value = minImp
     }
 
 

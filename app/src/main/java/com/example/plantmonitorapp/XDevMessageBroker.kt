@@ -122,7 +122,6 @@ object XDevMessageBroker
 
     suspend fun unpackEnvMetrics(msg: MutableList<Byte>)
     {
-
         val tempDataMsg = BrokerMessage.EnvMetricTemp(
             current = bytesToFloat(msg, 5),
             high = bytesToFloat(msg, 9),
