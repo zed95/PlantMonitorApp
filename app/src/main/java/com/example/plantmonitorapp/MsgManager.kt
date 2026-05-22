@@ -216,3 +216,32 @@ fun PktConnectSts(): ByteArray
 
     return stuffedMsg.toByteArray()
 }
+
+fun ConstructRecurrentEventRequest(evntId: UByte, paramId: UByte, value: UInt)
+{
+    val tmpBuf = mutableListOf<Byte>()
+    val payloadBuf = mutableListOf<Byte>()
+    var checksum: Byte = 0;
+    val stuffedMsg = mutableListOf<Byte>()
+
+    // Packet ID
+    tmpBuf.add(CrossDevicePackets.XDEVMSG_RECURR_EVNT_REQUEST.id.toByte())
+
+    // get size of payload, convert to bytes and push to packet buffer
+    payloadBuf.add(evntId.toByte())
+    payloadBuf.add(paramId.toByte())
+    payloadBuf.addAll(ByteBuffer.allocate(4).putInt(value.toInt()).array().toList())
+    payloadBuf.add(checksum)    // placeholder for real checksum
+    tmpBuf.addAll(ByteBuffer.allocate(4).putInt(payloadBuf.size).array().toList())
+
+    // remove checksum, add payload to packet buffer, recalculate checksum of packet then append it back
+    payloadBuf.removeAt(payloadBuf.lastIndex)
+    tmpBuf.addAll(payloadBuf)
+    checksum = calcChecksum(tmpBuf.toByteArray(), tmpBuf.size)
+    tmpBuf.add(checksum)
+
+    // stuff packet, then add SOP and EOP
+    stuffedMsg.addAll(stuffPacket(tmpBuf.toByteArray(), tmpBuf.size).toList())
+    stuffedMsg.add(0, SOP) // insert SOP at beginning of list
+    stuffedMsg.add(EOP) // add end of packet identifier
+}
