@@ -22,6 +22,31 @@ const val ERR_INVALID_ESCAPE: Byte = -3
 const val ERR_ESCAPE_AT_END: Byte =  -4
 
 
+enum class RecurrentEventId(val id: UByte)
+{
+    RECURR_EVNT_DSP_TEMP_XDEV       (0U),   // request to periodically feed temperature data to xdev display
+    RECURR_EVNT_DSP_HUM_XDEV        (1U),   // request to periodically feed humidity data to xdev display
+    RECURR_EVNT_DSP_LUX_XDEV        (2U),   // request to periodically feed lux data to xdev display.
+    RECURR_EVNT_CANCEL_XDEV_EVNTS   (3U),   // cancel all xdev recurring events. typically done when device disconnects from ESP32
+    RECURR_EVNT_MONITOR_TEMP_HUM    (4U),   // temperature and humidity monitoring
+    RECURR_EVNT_DSP_SOILM_SEN1      (5U),   // request to periodically send soil moisture sensor 1 data for display
+    RECURR_EVNT_DSP_SOILM_SEN2      (6U),  // request to periodically send soil moisture sensor 2 data for display
+    RECURR_EVNT_SOILM_1_XDEV        (7U),  // Request for soil moisture sensor 1 data from phone
+    RECURR_EVNT_SOILM_2_XDEV        (8U),  // Request for soil moisture sensor 2 data from phone
+    RECURR_EVNT_VENTILATION         (9U),  // Request to turn on ventilation for the enclosure
+    RECURR_EVNT_ENV_METRICS_XDEV    (10U);  // Request for plant environmental conditions
+
+    companion object {
+        private val map = RecurrentEventId.entries.associateBy { it.id }
+        fun fromId(id: UByte): RecurrentEventId? = map[id]
+    }
+}
+
+enum class RecurrentEventParamId(val id: UByte)
+{
+    RECURR_EVNT_PARAM_ENABLED(0U),
+    RECURR_EVNT_PARAM_PERIOD(1U);
+}
 
 fun msgConnectEsp32ToWifi(ssid: String, password: String): ByteArray
 {
@@ -217,7 +242,7 @@ fun PktConnectSts(): ByteArray
     return stuffedMsg.toByteArray()
 }
 
-fun ConstructRecurrentEventRequest(evntId: UByte, paramId: UByte, value: UInt)
+fun ConstructRecurrentEventRequest(evntId: UByte, paramId: UByte, value: UInt): ByteArray
 {
     val tmpBuf = mutableListOf<Byte>()
     val payloadBuf = mutableListOf<Byte>()
@@ -244,4 +269,6 @@ fun ConstructRecurrentEventRequest(evntId: UByte, paramId: UByte, value: UInt)
     stuffedMsg.addAll(stuffPacket(tmpBuf.toByteArray(), tmpBuf.size).toList())
     stuffedMsg.add(0, SOP) // insert SOP at beginning of list
     stuffedMsg.add(EOP) // add end of packet identifier
+
+    return stuffedMsg.toByteArray()
 }

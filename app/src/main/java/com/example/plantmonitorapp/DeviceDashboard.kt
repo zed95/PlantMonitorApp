@@ -80,6 +80,7 @@ fun DeviceDashboard(serviceViewModel: ServiceViewModel)
     {
         if(SocketManager.ConnectToDevice(serviceViewModel.selectedDevice) == DeviceConnectionSts.CONNECTED)
         {
+            XDevMessageBroker.outChannel.send(OutCommands.OUTCMD_DEVICE_DASHBOARD_DATA.id)
         }
 
         XDevMessageBroker.messages.collect { msg ->

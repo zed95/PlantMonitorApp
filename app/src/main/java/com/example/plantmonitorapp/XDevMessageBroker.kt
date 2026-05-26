@@ -3,8 +3,10 @@ package com.example.plantmonitorapp
 import com.example.plantmonitorapp.SocketManager.dashboardCh
 import com.example.plantmonitorapp.SocketManager.devicePingSts
 import com.example.plantmonitorapp.SocketManager.isActive
+import com.example.plantmonitorapp.SocketManager.packetChannel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -54,120 +56,129 @@ enum class CrossDevicePackets(val id: Int) {
     }
 }
 
-object XDevMessageBroker
+enum class OutCommands(val id: Int)
 {
-    private val  _messages = MutableSharedFlow<BrokerMessage>()
-    val messages = _messages.asSharedFlow()
+    OUTCMD_DEVICE_DASHBOARD_DATA(0);
 
-    suspend fun onRawMessage(msg: MutableList<Byte>)
-    {
-        // determine message type
-        when(CrossDevicePackets.fromId(msg[0].toInt()))
-        {
-            CrossDevicePackets.XDEVMSG_RSP_CONNECT_STS ->
-            {
-                devicePingSts = ConnectionAliveSts.RSP_RECEIVED
-            }
-
-            CrossDevicePackets.XDEVMSG_START -> TODO()
-            CrossDevicePackets.XDEVMSG_CONNECT_STATUS -> TODO()
-            CrossDevicePackets.XDEVMSG_TEMP_DATA_REQ -> TODO()
-            CrossDevicePackets.XDEVMSG_LIVE_TEMP_DATA,
-            CrossDevicePackets.XDEVMSG_MAX_TEMP_DATA,
-            CrossDevicePackets.XDEVMSG_MIN_TEMP_DATA -> {
-
-            }
-            CrossDevicePackets.XDEVMSG_HUM_DATA_REQ -> TODO()
-            CrossDevicePackets.XDEVMSG_LIVE_HUM_DATA,
-            CrossDevicePackets.XDEVMSG_MAX_HUM_DATA,
-            CrossDevicePackets.XDEVMSG_MIN_HUM_DATA -> {
-
-            }
-            CrossDevicePackets.XDEVMSG_SOILM1_DATA_REQ -> TODO()
-            CrossDevicePackets.XDEVMSG_LIVE_SOILM1_DATA,
-            CrossDevicePackets.XDEVMSG_MAX_SOILM1_DATA,
-            CrossDevicePackets.XDEVMSG_MIN_SOILM1_DATA -> {
-
-            }
-            CrossDevicePackets.XDEVMSG_SOILM2_DATA_REQ -> TODO()
-            CrossDevicePackets.XDEVMSG_LIVE_SOILM2_DATA,
-            CrossDevicePackets.XDEVMSG_MAX_SOILM2_DATA,
-            CrossDevicePackets.XDEVMSG_MIN_SOILM2_DATA -> {
-
-            }
-            CrossDevicePackets.XDEVMSG_TEMP_THRSH_DAT_REQ -> TODO()
-            CrossDevicePackets.XDEVMSG_TEMP_THRSH_DAT -> TODO()
-
-            CrossDevicePackets.XDEVMSG_MAX_T_ACT_IMP_TH,
-            CrossDevicePackets.XDEVMSG_MAX_T_ACT_TRIG_TH,
-            CrossDevicePackets.XDEVMSG_MIN_T_ACT_IMP_TH,
-            CrossDevicePackets.XDEVMSG_MIN_T_ACT_TRIG_TH,
-            CrossDevicePackets.XDEVMSG_MAX_H_ACT_IMP_TH,
-            CrossDevicePackets.XDEVMSG_MAX_H_ACT_TRIG_TH,
-            CrossDevicePackets.XDEVMSG_MIN_H_ACT_IMP_TH,
-            CrossDevicePackets.XDEVMSG_MIN_H_ACT_TRIG_TH,
-            CrossDevicePackets.XDEVMSG_MAX_SM1_ACT_IMP_TH,
-            CrossDevicePackets.XDEVMSG_MAX_SM1_ACT_TRIG_TH,
-            CrossDevicePackets.XDEVMSG_MIN_SM1_ACT_IMP_TH ,
-            CrossDevicePackets.XDEVMSG_MIN_SM1_ACT_TRIG_TH -> {
-
-            }
-
-            CrossDevicePackets.XDEVMSG_RECURR_EVNT_REQUEST -> TODO()
-            CrossDevicePackets.XDEVMSG_ENV_METRICS -> unpackEnvMetrics(msg)
-            null -> {}
-        }
-
+    companion object {
+        private val map = OutCommands.entries.associateBy { it.id }
+        fun fromId(id: Int): OutCommands? = map[id]
     }
-
-    suspend fun unpackEnvMetrics(msg: MutableList<Byte>)
-    {
-        val tempDataMsg = BrokerMessage.EnvMetricTemp(
-            current = bytesToFloat(msg, 5),
-            high = bytesToFloat(msg, 9),
-            low = bytesToFloat(msg, 13)
-        )
-        _messages.emit(tempDataMsg)
-
-        val humDataMsg = BrokerMessage.EnvMetricHum(
-            current = bytesToFloat(msg, 17),
-            high = bytesToFloat(msg, 21),
-            low = bytesToFloat(msg, 25)
-        )
-        _messages.emit(humDataMsg)
-
-        val soilM1Msg = BrokerMessage.EnvMetricSoilM1(
-            current = bytesToUshort(msg, 29),
-            high =  bytesToUshort(msg, 31),
-            low = bytesToUshort(msg, 33)
-        )
-        _messages.emit(soilM1Msg)
-
-        val soilM2Msg = BrokerMessage.EnvMetricSoilM2(
-            current = bytesToUshort(msg, 35),
-            high =  bytesToUshort(msg, 37),
-            low = bytesToUshort(msg, 39)
-        )
-        _messages.emit(soilM2Msg)
-
-    }
-
-    fun bytesToFloat(msg: MutableList<Byte>, idx: Int): Float
-    {
-        val data32 = (msg[idx].toInt() and 0xFF)              or
-                     ((msg[idx + 1].toInt() and 0xFF) shl 8)  or
-                     ((msg[idx + 2].toInt() and 0xFF) shl 16) or
-                     ((msg[idx + 3].toInt() and 0xFF) shl 24)
-        return Float.fromBits(data32)
-    }
-
-    fun bytesToUshort(msg: MutableList<Byte>, idx: Int): UShort
-    {
-        val data16 = (msg[idx].toInt() and 0xFF) or ((msg[idx + 1].toInt() and 0xFF) shl 8)
-        return data16.toUShort()
-    }
-
 }
+
+//object XDevMessageBroker
+//{
+//    private val  _messages = MutableSharedFlow<BrokerMessage>()
+//    val messages = _messages.asSharedFlow()
+//
+//    suspend fun onRawMessage(msg: MutableList<Byte>)
+//    {
+//        // determine message type
+//        when(CrossDevicePackets.fromId(msg[0].toInt()))
+//        {
+//            CrossDevicePackets.XDEVMSG_RSP_CONNECT_STS ->
+//            {
+//                devicePingSts = ConnectionAliveSts.RSP_RECEIVED
+//            }
+//
+//            CrossDevicePackets.XDEVMSG_START -> TODO()
+//            CrossDevicePackets.XDEVMSG_CONNECT_STATUS -> TODO()
+//            CrossDevicePackets.XDEVMSG_TEMP_DATA_REQ -> TODO()
+//            CrossDevicePackets.XDEVMSG_LIVE_TEMP_DATA,
+//            CrossDevicePackets.XDEVMSG_MAX_TEMP_DATA,
+//            CrossDevicePackets.XDEVMSG_MIN_TEMP_DATA -> {
+//
+//            }
+//            CrossDevicePackets.XDEVMSG_HUM_DATA_REQ -> TODO()
+//            CrossDevicePackets.XDEVMSG_LIVE_HUM_DATA,
+//            CrossDevicePackets.XDEVMSG_MAX_HUM_DATA,
+//            CrossDevicePackets.XDEVMSG_MIN_HUM_DATA -> {
+//
+//            }
+//            CrossDevicePackets.XDEVMSG_SOILM1_DATA_REQ -> TODO()
+//            CrossDevicePackets.XDEVMSG_LIVE_SOILM1_DATA,
+//            CrossDevicePackets.XDEVMSG_MAX_SOILM1_DATA,
+//            CrossDevicePackets.XDEVMSG_MIN_SOILM1_DATA -> {
+//
+//            }
+//            CrossDevicePackets.XDEVMSG_SOILM2_DATA_REQ -> TODO()
+//            CrossDevicePackets.XDEVMSG_LIVE_SOILM2_DATA,
+//            CrossDevicePackets.XDEVMSG_MAX_SOILM2_DATA,
+//            CrossDevicePackets.XDEVMSG_MIN_SOILM2_DATA -> {
+//
+//            }
+//            CrossDevicePackets.XDEVMSG_TEMP_THRSH_DAT_REQ -> TODO()
+//            CrossDevicePackets.XDEVMSG_TEMP_THRSH_DAT -> TODO()
+//
+//            CrossDevicePackets.XDEVMSG_MAX_T_ACT_IMP_TH,
+//            CrossDevicePackets.XDEVMSG_MAX_T_ACT_TRIG_TH,
+//            CrossDevicePackets.XDEVMSG_MIN_T_ACT_IMP_TH,
+//            CrossDevicePackets.XDEVMSG_MIN_T_ACT_TRIG_TH,
+//            CrossDevicePackets.XDEVMSG_MAX_H_ACT_IMP_TH,
+//            CrossDevicePackets.XDEVMSG_MAX_H_ACT_TRIG_TH,
+//            CrossDevicePackets.XDEVMSG_MIN_H_ACT_IMP_TH,
+//            CrossDevicePackets.XDEVMSG_MIN_H_ACT_TRIG_TH,
+//            CrossDevicePackets.XDEVMSG_MAX_SM1_ACT_IMP_TH,
+//            CrossDevicePackets.XDEVMSG_MAX_SM1_ACT_TRIG_TH,
+//            CrossDevicePackets.XDEVMSG_MIN_SM1_ACT_IMP_TH ,
+//            CrossDevicePackets.XDEVMSG_MIN_SM1_ACT_TRIG_TH -> {
+//
+//            }
+//
+//            CrossDevicePackets.XDEVMSG_RECURR_EVNT_REQUEST -> TODO()
+//            CrossDevicePackets.XDEVMSG_ENV_METRICS -> unpackEnvMetrics(msg)
+//            null -> {}
+//        }
+//
+//    }
+//
+//    suspend fun unpackEnvMetrics(msg: MutableList<Byte>)
+//    {
+//        val tempDataMsg = BrokerMessage.EnvMetricTemp(
+//            current = bytesToFloat(msg, 5),
+//            high = bytesToFloat(msg, 9),
+//            low = bytesToFloat(msg, 13)
+//        )
+//        _messages.emit(tempDataMsg)
+//
+//        val humDataMsg = BrokerMessage.EnvMetricHum(
+//            current = bytesToFloat(msg, 17),
+//            high = bytesToFloat(msg, 21),
+//            low = bytesToFloat(msg, 25)
+//        )
+//        _messages.emit(humDataMsg)
+//
+//        val soilM1Msg = BrokerMessage.EnvMetricSoilM1(
+//            current = bytesToUshort(msg, 29),
+//            high =  bytesToUshort(msg, 31),
+//            low = bytesToUshort(msg, 33)
+//        )
+//        _messages.emit(soilM1Msg)
+//
+//        val soilM2Msg = BrokerMessage.EnvMetricSoilM2(
+//            current = bytesToUshort(msg, 35),
+//            high =  bytesToUshort(msg, 37),
+//            low = bytesToUshort(msg, 39)
+//        )
+//        _messages.emit(soilM2Msg)
+//    }
+//
+//    fun bytesToFloat(msg: MutableList<Byte>, idx: Int): Float
+//    {
+//        val data32 = (msg[idx].toInt() and 0xFF)              or
+//                     ((msg[idx + 1].toInt() and 0xFF) shl 8)  or
+//                     ((msg[idx + 2].toInt() and 0xFF) shl 16) or
+//                     ((msg[idx + 3].toInt() and 0xFF) shl 24)
+//        return Float.fromBits(data32)
+//    }
+//
+//    fun bytesToUshort(msg: MutableList<Byte>, idx: Int): UShort
+//    {
+//        val data16 = (msg[idx].toInt() and 0xFF) or ((msg[idx + 1].toInt() and 0xFF) shl 8)
+//        return data16.toUShort()
+//    }
+//
+//}
 
 sealed class BrokerMessage
 {
@@ -187,3 +198,98 @@ sealed class BrokerMessage
                                val high: UShort,
                                val low: UShort) : BrokerMessage()
 }
+
+object XDevMessageBroker
+{
+    private val  _messages = MutableSharedFlow<BrokerMessage>()
+    val messages = _messages.asSharedFlow()
+    val outChannel = Channel<Int>(capacity = Channel.UNLIMITED)
+    val inChannel = Channel<MutableList<Byte>>(capacity = Channel.UNLIMITED)
+
+    private suspend fun processOutgoing() {
+        for (command in outChannel)  {
+
+            when(OutCommands.fromId(command))
+            {
+                OutCommands.OUTCMD_DEVICE_DASHBOARD_DATA -> {
+                    SocketManager.txPacketCh.send(
+                        ConstructRecurrentEventRequest(
+                            RecurrentEventId.RECURR_EVNT_ENV_METRICS_XDEV.id,
+                            RecurrentEventParamId.RECURR_EVNT_PARAM_ENABLED.id,
+                            1.toUInt()).toMutableList()
+                    )
+                }
+                else -> {}
+            }
+            // construct packet
+            // send to wifi for transmission
+        }
+    }
+
+    private suspend fun processIncoming() {
+        for (packet in inChannel) {
+            // determine message type
+            when(CrossDevicePackets.fromId(packet[0].toInt()))
+            {
+                CrossDevicePackets.XDEVMSG_RSP_CONNECT_STS ->
+                {
+                    devicePingSts = ConnectionAliveSts.RSP_RECEIVED
+                }
+
+                CrossDevicePackets.XDEVMSG_RECURR_EVNT_REQUEST -> TODO()
+                CrossDevicePackets.XDEVMSG_ENV_METRICS -> unpackEnvMetrics(packet)
+                else -> {}
+            }
+
+
+            // broadcast to relevant section
+        }
+    }
+
+    suspend fun unpackEnvMetrics(msg: MutableList<Byte>)
+    {
+        val tempDataMsg = BrokerMessage.EnvMetricTemp(
+            current = bytesToFloat(msg, 5),
+            high = bytesToFloat(msg, 9),
+            low = bytesToFloat(msg, 13)
+        )
+        XDevMessageBroker._messages.emit(tempDataMsg)
+
+        val humDataMsg = BrokerMessage.EnvMetricHum(
+            current = bytesToFloat(msg, 17),
+            high = bytesToFloat(msg, 21),
+            low = bytesToFloat(msg, 25)
+        )
+        XDevMessageBroker._messages.emit(humDataMsg)
+
+        val soilM1Msg = BrokerMessage.EnvMetricSoilM1(
+            current = bytesToUshort(msg, 29),
+            high =  bytesToUshort(msg, 31),
+            low = bytesToUshort(msg, 33)
+        )
+        XDevMessageBroker._messages.emit(soilM1Msg)
+
+        val soilM2Msg = BrokerMessage.EnvMetricSoilM2(
+            current = bytesToUshort(msg, 35),
+            high =  bytesToUshort(msg, 37),
+            low = bytesToUshort(msg, 39)
+        )
+        XDevMessageBroker._messages.emit(soilM2Msg)
+    }
+
+    fun bytesToFloat(msg: MutableList<Byte>, idx: Int): Float
+    {
+        val data32 = (msg[idx].toInt() and 0xFF)         or
+                ((msg[idx + 1].toInt() and 0xFF) shl 8)  or
+                ((msg[idx + 2].toInt() and 0xFF) shl 16) or
+                ((msg[idx + 3].toInt() and 0xFF) shl 24)
+        return Float.fromBits(data32)
+    }
+
+    fun bytesToUshort(msg: MutableList<Byte>, idx: Int): UShort
+    {
+        val data16 = (msg[idx].toInt() and 0xFF) or ((msg[idx + 1].toInt() and 0xFF) shl 8)
+        return data16.toUShort()
+    }
+
+    }
