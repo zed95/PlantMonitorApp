@@ -80,7 +80,7 @@ fun DeviceDashboard(serviceViewModel: ServiceViewModel)
     {
         if(SocketManager.ConnectToDevice(serviceViewModel.selectedDevice) == DeviceConnectionSts.CONNECTED)
         {
-            XDevMessageBroker.outChannel.send(OutCommands.OUTCMD_DEVICE_DASHBOARD_DATA.id)
+            XDevMessageBroker.outChannel.send(OutCommands.OUTCMD_DEVICE_DASHBOARD_DATA_ENABLE.id)
         }
 
         XDevMessageBroker.messages.collect { msg ->
@@ -94,6 +94,13 @@ fun DeviceDashboard(serviceViewModel: ServiceViewModel)
 
         }
     }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            XDevMessageBroker.outChannel.trySend(OutCommands.OUTCMD_DEVICE_DASHBOARD_DATA_DISABLE.id)
+        }
+    }
+
     // This places the button in the center of the screen
     Column(
         modifier = Modifier

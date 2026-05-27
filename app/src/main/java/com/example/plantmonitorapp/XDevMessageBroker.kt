@@ -58,7 +58,8 @@ enum class CrossDevicePackets(val id: Int) {
 
 enum class OutCommands(val id: Int)
 {
-    OUTCMD_DEVICE_DASHBOARD_DATA(0);
+    OUTCMD_DEVICE_DASHBOARD_DATA_ENABLE(0),
+    OUTCMD_DEVICE_DASHBOARD_DATA_DISABLE(1);
 
     companion object {
         private val map = OutCommands.entries.associateBy { it.id }
@@ -211,12 +212,21 @@ object XDevMessageBroker
 
             when(OutCommands.fromId(command))
             {
-                OutCommands.OUTCMD_DEVICE_DASHBOARD_DATA -> {
+                OutCommands.OUTCMD_DEVICE_DASHBOARD_DATA_ENABLE -> {
                     SocketManager.txPacketCh.send(
                         ConstructRecurrentEventRequest(
                             RecurrentEventId.RECURR_EVNT_ENV_METRICS_XDEV.id,
                             RecurrentEventParamId.RECURR_EVNT_PARAM_ENABLED.id,
                             1.toUInt()).toMutableList()
+                    )
+                }
+
+                OutCommands.OUTCMD_DEVICE_DASHBOARD_DATA_DISABLE -> {
+                    SocketManager.txPacketCh.send(
+                        ConstructRecurrentEventRequest(
+                            RecurrentEventId.RECURR_EVNT_ENV_METRICS_XDEV.id,
+                            RecurrentEventParamId.RECURR_EVNT_PARAM_ENABLED.id,
+                            0.toUInt()).toMutableList()
                     )
                 }
                 else -> {}
