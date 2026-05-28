@@ -78,10 +78,17 @@ fun DeviceDashboard(serviceViewModel: ServiceViewModel)
     // connect to device selected
     LaunchedEffect(Unit)
     {
+        println("Initialising Channels")
+        // initialise external device message broker
+        XDevMessageBroker.initChannels()
+
         if(SocketManager.ConnectToDevice(serviceViewModel.selectedDevice) == DeviceConnectionSts.CONNECTED)
         {
-            XDevMessageBroker.outChannel.send(OutCommands.OUTCMD_DEVICE_DASHBOARD_DATA_ENABLE.id)
+
         }
+
+        println("Sending Enable Metrics Request")
+        XDevMessageBroker.outChannel.send(OutCommands.OUTCMD_DEVICE_DASHBOARD_DATA_ENABLE.id)
 
         XDevMessageBroker.messages.collect { msg ->
             when(msg)
@@ -97,6 +104,7 @@ fun DeviceDashboard(serviceViewModel: ServiceViewModel)
 
     DisposableEffect(Unit) {
         onDispose {
+            println("Sending Disable Metrics Request")
             XDevMessageBroker.outChannel.trySend(OutCommands.OUTCMD_DEVICE_DASHBOARD_DATA_DISABLE.id)
         }
     }

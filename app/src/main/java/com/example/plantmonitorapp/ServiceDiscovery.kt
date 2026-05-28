@@ -52,12 +52,12 @@ class ServiceViewModel(application: Application) : AndroidViewModel(application)
 
             // Called as soon as service discovery begins.
             override fun onDiscoveryStarted(regType: String) {
-                Log.d(TAG, "Service discovery started")
+//                Log.d(TAG, "Service discovery started")
             }
 
             override fun onServiceFound(service: NsdServiceInfo) {
                 // A service was found! Do something with it.
-                Log.d(TAG, "Service discovery success$service")
+//                Log.d(TAG, "Service discovery success$service")
 
                 if(service.serviceType.contains(serviceType))
                 {
@@ -68,19 +68,19 @@ class ServiceViewModel(application: Application) : AndroidViewModel(application)
             override fun onServiceLost(service: NsdServiceInfo) {
                 // When the network service is no longer available.
                 // Internal bookkeeping code goes here.
-                Log.e(TAG, "service lost: $service")
+//                Log.e(TAG, "service lost: $service")
             }
 
             override fun onDiscoveryStopped(serviceType: String) {
-                Log.i(TAG, "Discovery stopped: $serviceType")
+//                Log.i(TAG, "Discovery stopped: $serviceType")
             }
 
             override fun onStartDiscoveryFailed(serviceType: String, errorCode: Int) {
-                Log.e(TAG, "Discovery failed: Error code:$errorCode")
+//                Log.e(TAG, "Discovery failed: Error code:$errorCode")
             }
 
             override fun onStopDiscoveryFailed(serviceType: String, errorCode: Int) {
-                Log.e(TAG, "Discovery failed: Error code:$errorCode")
+//                Log.e(TAG, "Discovery failed: Error code:$errorCode")
                 nsdManager.stopServiceDiscovery(this)
             }
         }

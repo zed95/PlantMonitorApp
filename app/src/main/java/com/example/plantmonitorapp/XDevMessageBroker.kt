@@ -207,12 +207,26 @@ object XDevMessageBroker
     val outChannel = Channel<Int>(capacity = Channel.UNLIMITED)
     val inChannel = Channel<MutableList<Byte>>(capacity = Channel.UNLIMITED)
 
-    private suspend fun processOutgoing() {
+    fun initChannels()
+    {
+        CoroutineScope(Dispatchers.IO).launch()
+        {
+            processOutgoing()
+        }
+
+        CoroutineScope(Dispatchers.IO).launch()
+        {
+            processIncoming()
+        }
+    }
+
+    private suspend fun processOutgoing()  {
         for (command in outChannel)  {
 
             when(OutCommands.fromId(command))
             {
                 OutCommands.OUTCMD_DEVICE_DASHBOARD_DATA_ENABLE -> {
+                    println("Sending Enable Metrics Signal")
                     SocketManager.txPacketCh.send(
                         ConstructRecurrentEventRequest(
                             RecurrentEventId.RECURR_EVNT_ENV_METRICS_XDEV.id,
