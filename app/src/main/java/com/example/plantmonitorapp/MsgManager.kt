@@ -1,6 +1,7 @@
 package com.example.plantmonitorapp
 
 import java.nio.ByteBuffer
+import java.nio.ByteOrder
 
 const val SOP: Byte = 0x7E    // Start of packet identifier
 const val EOP: Byte = 0X7F    // End of packet identifier
@@ -57,9 +58,9 @@ fun msgConnectEsp32ToWifi(ssid: String, password: String): ByteArray
     val numChecksumLenBytes = Byte.SIZE_BYTES
     val payloadSize = ssid.length + password.length + numSsidLenBytes + nunPasswordLenBytes + numChecksumLenBytes
     // converts the ssid length to byte buffer holding 4 bytes that make up ssid length, then to a byte array and finally to a list of bytes
-    val ssidSizeBytes = ByteBuffer.allocate(4).putInt(ssid.length).array().toList()
-    val passwordSizeBytes = ByteBuffer.allocate(4).putInt(password.length).array().toList()
-    val payloadSizeBytes = ByteBuffer.allocate(4).putInt(payloadSize).array().toList()
+    val ssidSizeBytes = IntToList(ssid.length)
+    val passwordSizeBytes = IntToList(password.length)
+    val payloadSizeBytes = IntToList(payloadSize)
     var checksum: Byte = 0
 
     msg.add(XDVEMSG_WIFI_CONNECT)
@@ -226,7 +227,7 @@ fun PktConnectSts(): ByteArray
     val tmpBuf = mutableListOf<Byte>()
     val checksumSize: Byte = 1;
     val payloadSize: Int =  checksumSize.toInt()
-    val payloadSizeBytes = ByteBuffer.allocate(4).putInt(payloadSize).array().toList()
+    val payloadSizeBytes = IntToList((payloadSize))
     var checksum: Byte = 0;
     val stuffedMsg = mutableListOf<Byte>()
 
@@ -255,10 +256,19 @@ fun ConstructRecurrentEventRequest(evntId: UByte, paramId: UByte, value: UInt): 
     // get size of payload, convert to bytes and push to packet buffer
     payloadBuf.add(evntId.toByte())
     payloadBuf.add(paramId.toByte())
-    payloadBuf.addAll(ByteBuffer.allocate(4).putInt(value.toInt()).array().toList())
-    payloadBuf.add(checksum)    // placeholder for real checksum
-    tmpBuf.addAll(ByteBuffer.allocate(4).putInt(payloadBuf.size).array().toList())
 
+
+    payloadBuf.addAll(IntToList(value.toInt()))
+    println("payload Buf: ${payloadBuf[payloadBuf.lastIndex - 3]}")
+    println("payload Buf: ${payloadBuf[payloadBuf.lastIndex - 2]}")
+    println("payload Buf: ${payloadBuf[payloadBuf.lastIndex - 1]}")
+    println("payload Buf: ${payloadBuf[payloadBuf.lastIndex]}")
+    payloadBuf.add(checksum)    // placeholder for real checksum
+    tmpBuf.addAll(IntToList(payloadBuf.size))
+    println("payload Buf: ${tmpBuf[tmpBuf.lastIndex - 3]}")
+    println("payload Buf: ${tmpBuf[tmpBuf.lastIndex - 2]}")
+    println("payload Buf: ${tmpBuf[tmpBuf.lastIndex - 1]}")
+    println("payload Buf: ${tmpBuf[tmpBuf.lastIndex]}")
     // remove checksum, add payload to packet buffer, recalculate checksum of packet then append it back
     payloadBuf.removeAt(payloadBuf.lastIndex)
     tmpBuf.addAll(payloadBuf)
@@ -271,4 +281,13 @@ fun ConstructRecurrentEventRequest(evntId: UByte, paramId: UByte, value: UInt): 
     stuffedMsg.add(EOP) // add end of packet identifier
 
     return stuffedMsg.toByteArray()
+}
+
+fun IntToList(intVal: Int): List<Byte>
+{
+    return ByteBuffer.allocate(4)
+                     .order(ByteOrder.LITTLE_ENDIAN)
+                     .putInt(intVal)
+                     .array()
+                     .toList()
 }
