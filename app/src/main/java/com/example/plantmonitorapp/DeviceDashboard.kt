@@ -89,6 +89,7 @@ fun DeviceDashboard(serviceViewModel: ServiceViewModel)
 
         println("Sending Enable Metrics Request")
         XDevMessageBroker.outChannel.send(OutCommands.OUTCMD_DEVICE_DASHBOARD_DATA_ENABLE.id)
+        XDevMessageBroker.outChannel.send(OutCommands.OUTCMD_REQUEST_ENV_THRESHOLDS.id)
 
         XDevMessageBroker.messages.collect { msg ->
             when(msg)
@@ -97,6 +98,10 @@ fun DeviceDashboard(serviceViewModel: ServiceViewModel)
                 is BrokerMessage.EnvMetricHum -> hum.updateEnvMetrics(msg.current, msg.high, msg.low)
                 is BrokerMessage.EnvMetricSoilM1 -> moist1.updateEnvMetrics(msg.current, msg.high, msg.low)
                 is BrokerMessage.EnvMetricSoilM2 -> moist2.updateEnvMetrics(msg.current, msg.high, msg.low)
+                is BrokerMessage.EnvThresholdsTemp -> temp.updateThresholds(msg.maxThAct, msg.maxThImp, msg.minThAct, msg.minThImp)
+                is BrokerMessage.EnvThresholdsHum -> hum.updateThresholds(msg.maxThAct, msg.maxThImp, msg.minThAct, msg.minThImp)
+                is BrokerMessage.EnvThresholdsMoisture1 -> moist1.updateThresholds(msg.maxThAct, msg.maxThImp, msg.minThAct, msg.minThImp)
+                is BrokerMessage.EnvThresholdsMoisture2 -> moist2.updateThresholds(msg.maxThAct, msg.maxThImp, msg.minThAct, msg.minThImp)
             }
 
         }

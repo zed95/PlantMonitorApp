@@ -256,22 +256,33 @@ fun ConstructRecurrentEventRequest(evntId: UByte, paramId: UByte, value: UInt): 
     // get size of payload, convert to bytes and push to packet buffer
     payloadBuf.add(evntId.toByte())
     payloadBuf.add(paramId.toByte())
-
-
     payloadBuf.addAll(IntToList(value.toInt()))
-    println("payload Buf: ${payloadBuf[payloadBuf.lastIndex - 3]}")
-    println("payload Buf: ${payloadBuf[payloadBuf.lastIndex - 2]}")
-    println("payload Buf: ${payloadBuf[payloadBuf.lastIndex - 1]}")
-    println("payload Buf: ${payloadBuf[payloadBuf.lastIndex]}")
     payloadBuf.add(checksum)    // placeholder for real checksum
     tmpBuf.addAll(IntToList(payloadBuf.size))
-    println("payload Buf: ${tmpBuf[tmpBuf.lastIndex - 3]}")
-    println("payload Buf: ${tmpBuf[tmpBuf.lastIndex - 2]}")
-    println("payload Buf: ${tmpBuf[tmpBuf.lastIndex - 1]}")
-    println("payload Buf: ${tmpBuf[tmpBuf.lastIndex]}")
     // remove checksum, add payload to packet buffer, recalculate checksum of packet then append it back
     payloadBuf.removeAt(payloadBuf.lastIndex)
     tmpBuf.addAll(payloadBuf)
+    checksum = calcChecksum(tmpBuf.toByteArray(), tmpBuf.size)
+    tmpBuf.add(checksum)
+
+    // stuff packet, then add SOP and EOP
+    stuffedMsg.addAll(stuffPacket(tmpBuf.toByteArray(), tmpBuf.size).toList())
+    stuffedMsg.add(0, SOP) // insert SOP at beginning of list
+    stuffedMsg.add(EOP) // add end of packet identifier
+
+    return stuffedMsg.toByteArray()
+}
+
+fun ConstructEnvThresholdsRequest(): ByteArray
+{
+    val tmpBuf = mutableListOf<Byte>()
+    var checksum: Byte = 0;
+    val stuffedMsg = mutableListOf<Byte>()
+
+    // Packet ID
+    tmpBuf.add(CrossDevicePackets.XDEVMSG_GET_ENV_THRESHOLDS.id.toByte())
+    // payload size = 1 = only checksum byte
+    tmpBuf.addAll(IntToList(1))
     checksum = calcChecksum(tmpBuf.toByteArray(), tmpBuf.size)
     tmpBuf.add(checksum)
 

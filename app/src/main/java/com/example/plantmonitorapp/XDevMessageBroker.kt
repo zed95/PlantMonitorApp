@@ -48,7 +48,13 @@ enum class CrossDevicePackets(val id: Int) {
     XDEVMSG_MIN_SM1_ACT_IMP_TH(29),
     XDEVMSG_MIN_SM1_ACT_TRIG_TH (30),
     XDEVMSG_RECURR_EVNT_REQUEST(31),
-    XDEVMSG_ENV_METRICS(32);
+    XDEVMSG_ENV_METRICS(32),
+    XDEVMSG_SETTINGS_UPDATE(33),
+    XDEVMSG_GET_TEMP_SETTINGS(34),
+    XDEVMSG_GET_TEMP_SETTINGS_REPLY(35),
+    XDEVMSG_GET_ENV_THRESHOLDS(36),
+    XDEVMSG_ENV_THRESHOLDS_REPLY(37);
+
 
     companion object {
         private val map = CrossDevicePackets.entries.associateBy { it.id }
@@ -59,7 +65,9 @@ enum class CrossDevicePackets(val id: Int) {
 enum class OutCommands(val id: Int)
 {
     OUTCMD_DEVICE_DASHBOARD_DATA_ENABLE(0),
-    OUTCMD_DEVICE_DASHBOARD_DATA_DISABLE(1);
+    OUTCMD_DEVICE_DASHBOARD_DATA_DISABLE(1),
+
+    OUTCMD_REQUEST_ENV_THRESHOLDS(2);
 
     companion object {
         private val map = OutCommands.entries.associateBy { it.id }
@@ -198,6 +206,26 @@ sealed class BrokerMessage
     data class EnvMetricSoilM2(val current: UShort,
                                val high: UShort,
                                val low: UShort) : BrokerMessage()
+
+    data class EnvThresholdsTemp(val maxThAct: Float,
+                                 val maxThImp: Float,
+                                 val minThAct: Float,
+                                 val minThImp: Float) : BrokerMessage()
+
+    data class EnvThresholdsHum(val maxThAct: Float,
+                                 val maxThImp: Float,
+                                 val minThAct: Float,
+                                 val minThImp: Float) : BrokerMessage()
+
+    data class EnvThresholdsMoisture1(val maxThAct: UShort,
+                                      val maxThImp: UShort,
+                                      val minThAct: UShort,
+                                      val minThImp: UShort) : BrokerMessage()
+
+    data class EnvThresholdsMoisture2(val maxThAct: UShort,
+                                      val maxThImp: UShort,
+                                      val minThAct: UShort,
+                                      val minThImp: UShort) : BrokerMessage()
 }
 
 object XDevMessageBroker
@@ -243,6 +271,11 @@ object XDevMessageBroker
                             0.toUInt()).toMutableList()
                     )
                 }
+
+                OutCommands.OUTCMD_REQUEST_ENV_THRESHOLDS ->
+                {
+                    SocketManager.txPacketCh.send(ConstructEnvThresholdsRequest().toMutableList())
+                }
                 else -> {}
             }
             // construct packet
@@ -262,6 +295,7 @@ object XDevMessageBroker
 
                 CrossDevicePackets.XDEVMSG_RECURR_EVNT_REQUEST -> TODO()
                 CrossDevicePackets.XDEVMSG_ENV_METRICS -> unpackEnvMetrics(packet)
+                CrossDevicePackets.XDEVMSG_ENV_THRESHOLDS_REPLY -> unpackEnvThresholds(packet)
                 else -> {}
             }
 
@@ -277,28 +311,59 @@ object XDevMessageBroker
             high = bytesToFloat(msg, 9),
             low = bytesToFloat(msg, 13)
         )
-        XDevMessageBroker._messages.emit(tempDataMsg)
+        _messages.emit(tempDataMsg)
 
         val humDataMsg = BrokerMessage.EnvMetricHum(
             current = bytesToFloat(msg, 17),
             high = bytesToFloat(msg, 21),
             low = bytesToFloat(msg, 25)
         )
-        XDevMessageBroker._messages.emit(humDataMsg)
+        _messages.emit(humDataMsg)
 
         val soilM1Msg = BrokerMessage.EnvMetricSoilM1(
             current = bytesToUshort(msg, 29),
             high =  bytesToUshort(msg, 31),
             low = bytesToUshort(msg, 33)
         )
-        XDevMessageBroker._messages.emit(soilM1Msg)
+        _messages.emit(soilM1Msg)
 
         val soilM2Msg = BrokerMessage.EnvMetricSoilM2(
             current = bytesToUshort(msg, 35),
             high =  bytesToUshort(msg, 37),
             low = bytesToUshort(msg, 39)
         )
-        XDevMessageBroker._messages.emit(soilM2Msg)
+        _messages.emit(soilM2Msg)
+    }
+
+    suspend fun unpackEnvThresholds(msg: MutableList<Byte>)
+    {
+        val tempThresholds = BrokerMessage.EnvThresholdsTemp(
+            maxThAct = bytesToFloat(msg, 5),
+            maxThImp = bytesToFloat(msg, 9),
+            minThAct = bytesToFloat(msg, 13),
+            minThImp = bytesToFloat(msg, 17))
+        _messages.emit(tempThresholds)
+
+        val humThresholds = BrokerMessage.EnvThresholdsHum(
+            maxThAct = bytesToFloat(msg, 21),
+            maxThImp = bytesToFloat(msg, 25),
+            minThAct = bytesToFloat(msg, 29),
+            minThImp = bytesToFloat(msg, 33))
+        _messages.emit(humThresholds)
+
+        val soilMoisture1Thresholds = BrokerMessage.EnvThresholdsMoisture1(
+            maxThAct = bytesToUshort(msg, 37),
+            maxThImp = bytesToUshort(msg, 41),
+            minThAct = bytesToUshort(msg, 45),
+            minThImp = bytesToUshort(msg, 49))
+        _messages.emit(soilMoisture1Thresholds)
+
+        val soilMoisture2Thresholds = BrokerMessage.EnvThresholdsMoisture2(
+            maxThAct = bytesToUshort(msg, 53),
+            maxThImp = bytesToUshort(msg, 57),
+            minThAct = bytesToUshort(msg, 61),
+            minThImp = bytesToUshort(msg, 65))
+        _messages.emit(soilMoisture2Thresholds)
     }
 
     fun bytesToFloat(msg: MutableList<Byte>, idx: Int): Float
