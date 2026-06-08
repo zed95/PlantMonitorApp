@@ -75,120 +75,17 @@ enum class OutCommands(val id: Int)
     }
 }
 
-//object XDevMessageBroker
-//{
-//    private val  _messages = MutableSharedFlow<BrokerMessage>()
-//    val messages = _messages.asSharedFlow()
-//
-//    suspend fun onRawMessage(msg: MutableList<Byte>)
-//    {
-//        // determine message type
-//        when(CrossDevicePackets.fromId(msg[0].toInt()))
-//        {
-//            CrossDevicePackets.XDEVMSG_RSP_CONNECT_STS ->
-//            {
-//                devicePingSts = ConnectionAliveSts.RSP_RECEIVED
-//            }
-//
-//            CrossDevicePackets.XDEVMSG_START -> TODO()
-//            CrossDevicePackets.XDEVMSG_CONNECT_STATUS -> TODO()
-//            CrossDevicePackets.XDEVMSG_TEMP_DATA_REQ -> TODO()
-//            CrossDevicePackets.XDEVMSG_LIVE_TEMP_DATA,
-//            CrossDevicePackets.XDEVMSG_MAX_TEMP_DATA,
-//            CrossDevicePackets.XDEVMSG_MIN_TEMP_DATA -> {
-//
-//            }
-//            CrossDevicePackets.XDEVMSG_HUM_DATA_REQ -> TODO()
-//            CrossDevicePackets.XDEVMSG_LIVE_HUM_DATA,
-//            CrossDevicePackets.XDEVMSG_MAX_HUM_DATA,
-//            CrossDevicePackets.XDEVMSG_MIN_HUM_DATA -> {
-//
-//            }
-//            CrossDevicePackets.XDEVMSG_SOILM1_DATA_REQ -> TODO()
-//            CrossDevicePackets.XDEVMSG_LIVE_SOILM1_DATA,
-//            CrossDevicePackets.XDEVMSG_MAX_SOILM1_DATA,
-//            CrossDevicePackets.XDEVMSG_MIN_SOILM1_DATA -> {
-//
-//            }
-//            CrossDevicePackets.XDEVMSG_SOILM2_DATA_REQ -> TODO()
-//            CrossDevicePackets.XDEVMSG_LIVE_SOILM2_DATA,
-//            CrossDevicePackets.XDEVMSG_MAX_SOILM2_DATA,
-//            CrossDevicePackets.XDEVMSG_MIN_SOILM2_DATA -> {
-//
-//            }
-//            CrossDevicePackets.XDEVMSG_TEMP_THRSH_DAT_REQ -> TODO()
-//            CrossDevicePackets.XDEVMSG_TEMP_THRSH_DAT -> TODO()
-//
-//            CrossDevicePackets.XDEVMSG_MAX_T_ACT_IMP_TH,
-//            CrossDevicePackets.XDEVMSG_MAX_T_ACT_TRIG_TH,
-//            CrossDevicePackets.XDEVMSG_MIN_T_ACT_IMP_TH,
-//            CrossDevicePackets.XDEVMSG_MIN_T_ACT_TRIG_TH,
-//            CrossDevicePackets.XDEVMSG_MAX_H_ACT_IMP_TH,
-//            CrossDevicePackets.XDEVMSG_MAX_H_ACT_TRIG_TH,
-//            CrossDevicePackets.XDEVMSG_MIN_H_ACT_IMP_TH,
-//            CrossDevicePackets.XDEVMSG_MIN_H_ACT_TRIG_TH,
-//            CrossDevicePackets.XDEVMSG_MAX_SM1_ACT_IMP_TH,
-//            CrossDevicePackets.XDEVMSG_MAX_SM1_ACT_TRIG_TH,
-//            CrossDevicePackets.XDEVMSG_MIN_SM1_ACT_IMP_TH ,
-//            CrossDevicePackets.XDEVMSG_MIN_SM1_ACT_TRIG_TH -> {
-//
-//            }
-//
-//            CrossDevicePackets.XDEVMSG_RECURR_EVNT_REQUEST -> TODO()
-//            CrossDevicePackets.XDEVMSG_ENV_METRICS -> unpackEnvMetrics(msg)
-//            null -> {}
-//        }
-//
-//    }
-//
-//    suspend fun unpackEnvMetrics(msg: MutableList<Byte>)
-//    {
-//        val tempDataMsg = BrokerMessage.EnvMetricTemp(
-//            current = bytesToFloat(msg, 5),
-//            high = bytesToFloat(msg, 9),
-//            low = bytesToFloat(msg, 13)
-//        )
-//        _messages.emit(tempDataMsg)
-//
-//        val humDataMsg = BrokerMessage.EnvMetricHum(
-//            current = bytesToFloat(msg, 17),
-//            high = bytesToFloat(msg, 21),
-//            low = bytesToFloat(msg, 25)
-//        )
-//        _messages.emit(humDataMsg)
-//
-//        val soilM1Msg = BrokerMessage.EnvMetricSoilM1(
-//            current = bytesToUshort(msg, 29),
-//            high =  bytesToUshort(msg, 31),
-//            low = bytesToUshort(msg, 33)
-//        )
-//        _messages.emit(soilM1Msg)
-//
-//        val soilM2Msg = BrokerMessage.EnvMetricSoilM2(
-//            current = bytesToUshort(msg, 35),
-//            high =  bytesToUshort(msg, 37),
-//            low = bytesToUshort(msg, 39)
-//        )
-//        _messages.emit(soilM2Msg)
-//    }
-//
-//    fun bytesToFloat(msg: MutableList<Byte>, idx: Int): Float
-//    {
-//        val data32 = (msg[idx].toInt() and 0xFF)              or
-//                     ((msg[idx + 1].toInt() and 0xFF) shl 8)  or
-//                     ((msg[idx + 2].toInt() and 0xFF) shl 16) or
-//                     ((msg[idx + 3].toInt() and 0xFF) shl 24)
-//        return Float.fromBits(data32)
-//    }
-//
-//    fun bytesToUshort(msg: MutableList<Byte>, idx: Int): UShort
-//    {
-//        val data16 = (msg[idx].toInt() and 0xFF) or ((msg[idx + 1].toInt() and 0xFF) shl 8)
-//        return data16.toUShort()
-//    }
-//
-//}
-
+/***************************************************************************************************
+ * Represents all message types emitted by the communication layer after
+ * decoding incoming packets.
+ *
+ * This sealed class defines a strongly-typed hierarchy of domain messages
+ * used to transport environmental metric and threshold data through the
+ * application. Each subclass represents a specific category of decoded data.
+ *
+ * Using a sealed class ensures exhaustive `when` expressions when handling
+ * broker messages and provides type safety across the messaging pipeline.
+ **************************************************************************************************/
 sealed class BrokerMessage
 {
     data class EnvMetricTemp(val current: Float,
@@ -235,6 +132,20 @@ object XDevMessageBroker
     val outChannel = Channel<Int>(capacity = Channel.UNLIMITED)
     val inChannel = Channel<MutableList<Byte>>(capacity = Channel.UNLIMITED)
 
+    /***************************************************************************************************
+     * Starts the background coroutines responsible for processing incoming and
+     * outgoing communication channels.
+     *
+     * Two coroutines are launched on the `Dispatchers.IO` dispatcher:
+     * - One coroutine continuously processes outgoing messages.
+     * - One coroutine continuously processes incoming messages.
+     *
+     * These coroutines execute independently and run concurrently with the
+     * calling thread.
+     *
+     * Note: This function does not retain references to the launched coroutines
+     * and therefore cannot directly monitor, cancel, or await their completion.
+     **************************************************************************************************/
     fun initChannels()
     {
         CoroutineScope(Dispatchers.IO).launch()
@@ -248,6 +159,19 @@ object XDevMessageBroker
         }
     }
 
+    /***************************************************************************************************
+     * Processes outgoing commands received from the outbound command channel.
+     *
+     * This coroutine continuously consumes commands from `outChannel` and
+     * translates them into protocol packets that are forwarded to the transmit
+     * packet channel for delivery.
+     *
+     * For each recognized command, the appropriate packet is constructed and
+     * sent to `SocketManager.txPacketCh`. Unrecognized commands are ignored.
+     *
+     * This function suspends while waiting for commands to become available and
+     * while sending packets to the transmit channel.
+     **************************************************************************************************/
     private suspend fun processOutgoing()  {
         for (command in outChannel)  {
 
@@ -283,6 +207,23 @@ object XDevMessageBroker
         }
     }
 
+    /***************************************************************************************************
+     * Processes incoming packets received from the inbound packet channel.
+     *
+     * This coroutine continuously consumes packets from `inChannel`, determines
+     * the packet type from the packet identifier, and dispatches the packet to
+     * the appropriate handler.
+     *
+     * Connection status response packets update the internal connection state,
+     * while environmental data packets are unpacked and processed by their
+     * respective handler functions.
+     *
+     * This function suspends while waiting for packets to become available from
+     * the channel.
+     *
+     * Processing continues until `inChannel` is closed or the coroutine is
+     * cancelled.
+     **************************************************************************************************/
     private suspend fun processIncoming() {
         for (packet in inChannel) {
             // determine message type
@@ -304,6 +245,28 @@ object XDevMessageBroker
         }
     }
 
+    /***************************************************************************************************
+     * Unpacks environmental metrics from a received packet and publishes the
+     * decoded values to the message stream.
+     *
+     * The packet payload is expected to contain:
+     * - Temperature metrics (current, high, and low values).
+     * - Humidity metrics (current, high, and low values).
+     * - Soil moisture sensor 1 metrics (current, high, and low values).
+     * - Soil moisture sensor 2 metrics (current, high, and low values).
+     *
+     * Temperature and humidity values are decoded as floating-point numbers,
+     * while soil moisture values are decoded as unsigned 16-bit integers.
+     *
+     * Each metric group is converted into a corresponding `BrokerMessage`
+     * instance and emitted to `_messages` for downstream consumers.
+     *
+     * Note: This function assumes that `msg` contains a valid environmental
+     * metrics packet and that all expected fields are present at their defined
+     * byte offsets.
+     *
+     * @param msg The packet containing encoded environmental metrics data.
+     **************************************************************************************************/
     suspend fun unpackEnvMetrics(msg: MutableList<Byte>)
     {
         val tempDataMsg = BrokerMessage.EnvMetricTemp(
@@ -335,6 +298,35 @@ object XDevMessageBroker
         _messages.emit(soilM2Msg)
     }
 
+    /***************************************************************************************************
+     * Unpacks environmental threshold values from a received packet and publishes
+     * the decoded thresholds to the message stream.
+     *
+     * The packet payload is expected to contain threshold information for:
+     * - Temperature.
+     * - Humidity.
+     * - Soil moisture sensor 1.
+     * - Soil moisture sensor 2.
+     *
+     * Each threshold group contains:
+     * - Maximum active threshold.
+     * - Maximum implemented threshold.
+     * - Minimum active threshold.
+     * - Minimum implemented threshold.
+     *
+     * Temperature and humidity thresholds are decoded as floating-point values,
+     * while soil moisture thresholds are decoded as unsigned 16-bit integers.
+     *
+     * Each decoded threshold group is converted into a corresponding
+     * `BrokerMessage` instance and emitted to `_messages` for downstream
+     * consumers.
+     *
+     * Note: This function assumes that `msg` contains a valid environmental
+     * thresholds packet and that all expected fields are present at their
+     * protocol-defined byte offsets.
+     *
+     * @param msg The packet containing encoded environmental threshold data.
+     **************************************************************************************************/
     suspend fun unpackEnvThresholds(msg: MutableList<Byte>)
     {
         val tempThresholds = BrokerMessage.EnvThresholdsTemp(
@@ -366,6 +358,20 @@ object XDevMessageBroker
         _messages.emit(soilMoisture2Thresholds)
     }
 
+    /***************************************************************************************************
+     * Converts four bytes from a packet into a 32-bit floating-point value.
+     *
+     * Four consecutive bytes beginning at the specified index are interpreted as
+     * an IEEE 754 single-precision floating-point value encoded in little-endian
+     * byte order.
+     *
+     * Note: This function assumes that at least four bytes are available starting
+     * at `idx`. No bounds checking is performed.
+     *
+     * @param msg The packet containing the encoded floating-point value.
+     * @param idx The index of the first byte of the 32-bit value.
+     * @return The decoded floating-point value.
+     **************************************************************************************************/
     fun bytesToFloat(msg: MutableList<Byte>, idx: Int): Float
     {
         val data32 = (msg[idx].toInt() and 0xFF)         or
@@ -375,6 +381,19 @@ object XDevMessageBroker
         return Float.fromBits(data32)
     }
 
+    /***************************************************************************************************
+     * Converts two bytes from a packet into an unsigned 16-bit integer.
+     *
+     * Two consecutive bytes beginning at the specified index are interpreted as
+     * an unsigned 16-bit value encoded in little-endian byte order.
+     *
+     * Note: This function assumes that at least two bytes are available starting
+     * at `idx`. No bounds checking is performed.
+     *
+     * @param msg The packet containing the encoded unsigned 16-bit value.
+     * @param idx The index of the first byte of the 16-bit value.
+     * @return The decoded unsigned 16-bit integer.
+     **************************************************************************************************/
     fun bytesToUshort(msg: MutableList<Byte>, idx: Int): UShort
     {
         val data16 = (msg[idx].toInt() and 0xFF) or ((msg[idx + 1].toInt() and 0xFF) shl 8)
