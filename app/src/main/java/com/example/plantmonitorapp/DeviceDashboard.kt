@@ -1,6 +1,7 @@
 package com.example.plantmonitorapp
-import android.util.MutableInt
-import androidx.compose.foundation.Image
+import android.app.Dialog
+import android.net.nsd.NsdServiceInfo
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -18,101 +19,72 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowRight
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Cloud
-import androidx.compose.material.icons.filled.SignalWifi4Bar
-import androidx.compose.material.icons.filled.SignalWifiBad
-import androidx.compose.material.icons.filled.SignalWifiStatusbar4Bar
 import androidx.compose.material.icons.filled.Thermostat
 import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material.icons.filled.WifiOff
-import androidx.compose.material.icons.outlined.NetworkWifi3Bar
 import androidx.compose.material.icons.outlined.Wifi
-import androidx.compose.material.icons.sharp.SignalWifiStatusbar4Bar
-import androidx.compose.material.icons.twotone.SignalWifiStatusbar4Bar
+import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.Icon
-import androidx.compose.material3.ShapeDefaults
-import androidx.compose.material3.Shapes
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.mutableDoubleStateOf
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.plantmonitorapp.SocketManager.dashboardCh
-import com.example.plantmonitorapp.SocketManager.devicePingSts
+import androidx.compose.ui.window.Dialog
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.plantmonitorapp.ui.theme.BackgroundGrey
 import com.example.plantmonitorapp.ui.theme.CustomSilver
-import com.example.plantmonitorapp.ui.theme.ElevatedGreen
 import com.example.plantmonitorapp.ui.theme.ElevatedGrey
-import kotlinx.coroutines.channels.Channel
+import com.google.android.material.progressindicator.CircularProgressIndicator
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import java.sql.Connection
 
 @Composable
-fun DeviceDashboard(serviceViewModel: ServiceViewModel)
+fun DeviceDashboard(selectedDevice: NsdServiceInfo,
+                    dashboardViewModel: DeviceDashboardViewModel = viewModel())
 {
-    var packet = listOf<Byte>()
-    var dst = -1
-    var type = -1
-    val temp = remember {EnvInfoElement<Float>("Temperature", Icons.Filled.Thermostat, Color(0xFFFF7070), "\u2103")}
-    val hum = remember {EnvInfoElement<Float>("Humidity", Icons.Filled.Cloud, Color(0xFF68ADFF), "%")}
-    val moist1 = remember { EnvInfoElement<UShort>("Soil Moisture 1", Icons.Filled.WaterDrop, Color(0xFF003FFF), "%") }
-    val moist2 = remember { EnvInfoElement<UShort>("Soil Moisture 2", Icons.Filled.WaterDrop, Color(0xFF003FFF), "%") }
-    val name = serviceViewModel.selectedDevice.serviceName
-
+    val name = selectedDevice.serviceName
+    val isConneting = dashboardViewModel.isConnecting.collectAsStateWithLifecycle(false)
+    val connectionSts = dashboardViewModel.connectionSts.collectAsStateWithLifecycle(
+        DeviceConnectionSts.NOT_CONNECTED)
 
     // connect to device selected
     LaunchedEffect(Unit)
     {
-        println("Initialising Channels")
-        // initialise external device message broker
-        XDevMessageBroker.initChannels()
-
-        if(SocketManager.ConnectToDevice(serviceViewModel.selectedDevice) == DeviceConnectionSts.CONNECTED)
-        {
-
-        }
-
-        println("Sending Enable Metrics Request")
-        XDevMessageBroker.outChannel.send(OutCommands.OUTCMD_DEVICE_DASHBOARD_DATA_ENABLE.id)
-        XDevMessageBroker.outChannel.send(OutCommands.OUTCMD_REQUEST_ENV_THRESHOLDS.id)
-
-        XDevMessageBroker.messages.collect { msg ->
-            when(msg)
-            {
-                is BrokerMessage.EnvMetricTemp -> temp.updateEnvMetrics(msg.current, msg.high, msg.low)
-                is BrokerMessage.EnvMetricHum -> hum.updateEnvMetrics(msg.current, msg.high, msg.low)
-                is BrokerMessage.EnvMetricSoilM1 -> moist1.updateEnvMetrics(msg.current, msg.high, msg.low)
-                is BrokerMessage.EnvMetricSoilM2 -> moist2.updateEnvMetrics(msg.current, msg.high, msg.low)
-                is BrokerMessage.EnvThresholdsTemp -> temp.updateThresholds(msg.maxThAct, msg.maxThImp, msg.minThAct, msg.minThImp)
-                is BrokerMessage.EnvThresholdsHum -> hum.updateThresholds(msg.maxThAct, msg.maxThImp, msg.minThAct, msg.minThImp)
-                is BrokerMessage.EnvThresholdsMoisture1 -> moist1.updateThresholds(msg.maxThAct, msg.maxThImp, msg.minThAct, msg.minThImp)
-                is BrokerMessage.EnvThresholdsMoisture2 -> moist2.updateThresholds(msg.maxThAct, msg.maxThImp, msg.minThAct, msg.minThImp)
-            }
-
-        }
+        dashboardViewModel.deviceConnect(selectedDevice)
+        dashboardViewModel.initialise()
     }
 
     DisposableEffect(Unit) {
         onDispose {
-            println("Sending Disable Metrics Request")
             XDevMessageBroker.outChannel.trySend(OutCommands.OUTCMD_DEVICE_DASHBOARD_DATA_DISABLE.id)
+
+            //call device dashboard viewmodel to deinitialise
+
         }
     }
+
 
     // This places the button in the center of the screen
     Column(
@@ -121,14 +93,41 @@ fun DeviceDashboard(serviceViewModel: ServiceViewModel)
             .background(BackgroundGrey)
     ) {
         TopPanel(name)
-        temp.ElementImplement()
-        hum.ElementImplement()
-        moist1.ElementImplement()
-        moist2.ElementImplement()
+        dashboardViewModel.temp.ElementImplement()
+        dashboardViewModel.hum.ElementImplement()
+        dashboardViewModel.moist1.ElementImplement()
+        dashboardViewModel.moist2.ElementImplement()
+
+        when(connectionSts.value)
+        {
+            DeviceConnectionSts.DISCONNECTED -> Unit
+            DeviceConnectionSts.NOT_CONNECTED -> ConnectingDialog()
+            DeviceConnectionSts.CONNECTED -> dashboardViewModel.requestDashboardInfo()
+            else -> Unit
+        }
+
     }
 
 
 }
+
+@Composable
+fun ConnectingDialog()
+{
+    Dialog(onDismissRequest = {}) {
+        Card {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                CircularProgressIndicator()
+                Spacer(Modifier.height(16.dp))
+                Text("Connecting...")
+            }
+        }
+    }
+}
+
 
 @Composable
 fun DeviceDashBaordName(name: String)
@@ -343,6 +342,7 @@ fun TopPanelDevConnectStsIcon()
                     Icons.Filled.Wifi
                 }
 
+                DeviceConnectionSts.NOT_CONNECTED,
                 DeviceConnectionSts.DISCONNECTED ->
                 {
                     Icons.Filled.WifiOff
@@ -361,7 +361,7 @@ fun TopPanelDevConnectStsIcon()
                 {
                     Color.Yellow
                 }
-
+                DeviceConnectionSts.NOT_CONNECTED,
                 DeviceConnectionSts.DISCONNECTED ->
                 {
                     Color.Red
@@ -371,4 +371,62 @@ fun TopPanelDevConnectStsIcon()
             .size(40.dp)
             .padding(start = 4.dp)
     )
+}
+
+class DeviceDashboardViewModel(): ViewModel()
+{
+    private var initialised = false
+    private val _isConnecting = MutableStateFlow(false)
+    val isConnecting = _isConnecting.asStateFlow()
+    private val _connectionSts = MutableStateFlow(DeviceConnectionSts.NOT_CONNECTED)
+    val connectionSts = _connectionSts.asStateFlow()
+    val temp = EnvInfoElement<Float>("Temperature", Icons.Filled.Thermostat, Color(0xFFFF7070), "\u2103")
+    val hum = EnvInfoElement<Float>("Humidity", Icons.Filled.Cloud, Color(0xFF68ADFF), "%")
+    val moist1 = EnvInfoElement<UShort>("Soil Moisture 1", Icons.Filled.WaterDrop, Color(0xFF003FFF), "%")
+    val moist2 = EnvInfoElement<UShort>("Soil Moisture 2", Icons.Filled.WaterDrop, Color(0xFF003FFF), "%")
+
+    fun requestDashboardInfo() = viewModelScope.launch()
+    {
+        XDevMessageBroker.outChannel.send(OutCommands.OUTCMD_DEVICE_DASHBOARD_DATA_ENABLE.id)
+        XDevMessageBroker.outChannel.send(OutCommands.OUTCMD_REQUEST_ENV_THRESHOLDS.id)
+    }
+
+    suspend fun initialise()
+    {
+        if(!initialised)
+        {
+            XDevMessageBroker.initChannels()
+            initialised = true
+
+            XDevMessageBroker.messages.collect { msg ->
+                when(msg)
+                {
+                    is BrokerMessage.EnvMetricTemp -> temp.updateEnvMetrics(msg.current, msg.high, msg.low)
+                    is BrokerMessage.EnvMetricHum -> hum.updateEnvMetrics(msg.current, msg.high, msg.low)
+                    is BrokerMessage.EnvMetricSoilM1 -> moist1.updateEnvMetrics(msg.current, msg.high, msg.low)
+                    is BrokerMessage.EnvMetricSoilM2 -> moist2.updateEnvMetrics(msg.current, msg.high, msg.low)
+                    is BrokerMessage.EnvThresholdsTemp -> temp.updateThresholds(msg.maxThAct, msg.maxThImp, msg.minThAct, msg.minThImp)
+                    is BrokerMessage.EnvThresholdsHum -> hum.updateThresholds(msg.maxThAct, msg.maxThImp, msg.minThAct, msg.minThImp)
+                    is BrokerMessage.EnvThresholdsMoisture1 -> moist1.updateThresholds(msg.maxThAct, msg.maxThImp, msg.minThAct, msg.minThImp)
+                    is BrokerMessage.EnvThresholdsMoisture2 -> moist2.updateThresholds(msg.maxThAct, msg.maxThImp, msg.minThAct, msg.minThImp)
+                }
+            }
+
+        }
+    }
+
+    suspend fun deviceConnect(device: NsdServiceInfo)
+    {
+        _isConnecting.value = true
+        if(!SocketManager.isConnectionActive())
+        {
+            _connectionSts.value = SocketManager.ConnectToDevice(device)
+        }
+        else
+        {
+            _connectionSts.value = DeviceConnectionSts.CONNECTED
+        }
+        _isConnecting.value = false
+    }
+
 }

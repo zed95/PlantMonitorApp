@@ -17,6 +17,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 import java.net.Socket
 
 enum class DeviceConnectionSts {
+    NOT_CONNECTED,
     DISCONNECTED,
     CONNECTING,
     CONNECTED
@@ -43,22 +44,20 @@ object SocketManager: ViewModel()
     val dashboardCh = Channel<MutableList<Byte>>(capacity = Channel.UNLIMITED)
     val dashboardPktFlow = dashboardCh.receiveAsFlow()
 
-    fun ConnectToDevice(devInfo: NsdServiceInfo): DeviceConnectionSts
+    suspend fun ConnectToDevice(devInfo: NsdServiceInfo): DeviceConnectionSts
     {
         connectionSts = DeviceConnectionSts.CONNECTING
-        CoroutineScope(Dispatchers.IO).launch()
+
+        if(Connect(devInfo.hostAddresses.first().toString(), devInfo.port))
         {
-            if(Connect(devInfo.hostAddresses.first().toString(), devInfo.port))
-            {
-                connectionSts = DeviceConnectionSts.CONNECTED
-                startReading()
-                startOutStream()
-                isConnectionAlive()
-            }
-            else
-            {
-                connectionSts = DeviceConnectionSts.DISCONNECTED
-            }
+            connectionSts = DeviceConnectionSts.CONNECTED
+            startReading()
+            startOutStream()
+            isConnectionAlive()
+        }
+        else
+        {
+            connectionSts = DeviceConnectionSts.DISCONNECTED
         }
 
         return connectionSts
@@ -352,5 +351,22 @@ object SocketManager: ViewModel()
                 }
             }
         }
+    }
+
+    /***********************************************************************************************
+     * Specifies whether the application is still connected to the device.
+     *
+     * @return true if connection is still active, false otherwise/
+     **********************************************************************************************/
+    fun isConnectionActive(): Boolean
+    {
+        var connectionActive = false
+
+        if(isActive)
+        {
+            connectionActive = true
+        }
+
+        return connectionActive
     }
 }

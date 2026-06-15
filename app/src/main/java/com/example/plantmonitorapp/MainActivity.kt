@@ -565,7 +565,7 @@ fun MyScreen(viewModel: BluetoothViewModel, pairingLauncher: ActivityResultLaunc
 
         composable("DeviceDashboard")
         {
-            DeviceDashboard(serviceViewModel)
+            DeviceDashboard(serviceViewModel.selectedDevice)
         }
     }
 

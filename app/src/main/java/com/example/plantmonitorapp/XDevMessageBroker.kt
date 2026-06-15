@@ -178,7 +178,6 @@ object XDevMessageBroker
             when(OutCommands.fromId(command))
             {
                 OutCommands.OUTCMD_DEVICE_DASHBOARD_DATA_ENABLE -> {
-                    println("Sending Enable Metrics Signal")
                     SocketManager.txPacketCh.send(
                         ConstructRecurrentEventRequest(
                             RecurrentEventId.RECURR_EVNT_ENV_METRICS_XDEV.id,
