@@ -1,7 +1,9 @@
 package com.example.plantmonitorapp
+import android.app.AlertDialog
 import android.app.Dialog
 import android.net.nsd.NsdServiceInfo
 import android.util.Log
+import android.widget.Button
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -27,6 +29,8 @@ import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material.icons.filled.WifiOff
 import androidx.compose.material.icons.outlined.Wifi
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -37,6 +41,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -66,7 +71,7 @@ fun DeviceDashboard(selectedDevice: NsdServiceInfo,
 {
     val name = selectedDevice.serviceName
     val isConneting = dashboardViewModel.isConnecting.collectAsStateWithLifecycle(false)
-    val connectionSts = dashboardViewModel.connectionSts.collectAsStateWithLifecycle(
+    var connectionSts = dashboardViewModel.connectionSts.collectAsStateWithLifecycle(
         DeviceConnectionSts.NOT_CONNECTED)
 
     // connect to device selected
@@ -100,8 +105,9 @@ fun DeviceDashboard(selectedDevice: NsdServiceInfo,
 
         when(connectionSts.value)
         {
-            DeviceConnectionSts.DISCONNECTED -> Unit
-            DeviceConnectionSts.NOT_CONNECTED -> ConnectingDialog()
+            DeviceConnectionSts.DISCONNECTED -> AlertDisconnect(dashboardViewModel)
+            DeviceConnectionSts.CONNECTING -> ConnectingDialog()
+            DeviceConnectionSts.NOT_CONNECTED -> Unit
             DeviceConnectionSts.CONNECTED -> dashboardViewModel.requestDashboardInfo()
             else -> Unit
         }
@@ -127,6 +133,32 @@ fun ConnectingDialog()
         }
     }
 }
+
+@Composable
+fun AlertDisconnect(dashboardViewModel: DeviceDashboardViewModel)
+{
+    AlertDialog(
+        onDismissRequest = {
+            dashboardViewModel.clearDisconnectState()
+        },
+        title = {
+            Text("Connection Status")
+        },
+        text = {
+            Text("Successfully connected to the device.")
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    dashboardViewModel.clearDisconnectState()
+                }
+            ) {
+                Text("OK")
+            }
+        }
+    )
+}
+
 
 
 @Composable
@@ -376,8 +408,6 @@ fun TopPanelDevConnectStsIcon()
 class DeviceDashboardViewModel(): ViewModel()
 {
     private var initialised = false
-    private val _isConnecting = MutableStateFlow(false)
-    val isConnecting = _isConnecting.asStateFlow()
     private val _connectionSts = MutableStateFlow(DeviceConnectionSts.NOT_CONNECTED)
     val connectionSts = _connectionSts.asStateFlow()
     val temp = EnvInfoElement<Float>("Temperature", Icons.Filled.Thermostat, Color(0xFFFF7070), "\u2103")
@@ -387,8 +417,13 @@ class DeviceDashboardViewModel(): ViewModel()
 
     fun requestDashboardInfo() = viewModelScope.launch()
     {
-        XDevMessageBroker.outChannel.send(OutCommands.OUTCMD_DEVICE_DASHBOARD_DATA_ENABLE.id)
-        XDevMessageBroker.outChannel.send(OutCommands.OUTCMD_REQUEST_ENV_THRESHOLDS.id)
+        XDevMessageBroker.outChannel.send(
+            XDevMessageBroker.constructParameterlessRequest(
+                OutCommands.OUTCMD_DEVICE_DASHBOARD_DATA_ENABLE.id))
+
+        XDevMessageBroker.outChannel.send(
+            XDevMessageBroker.constructParameterlessRequest(
+                OutCommands.OUTCMD_REQUEST_ENV_THRESHOLDS.id))
     }
 
     suspend fun initialise()
@@ -409,6 +444,7 @@ class DeviceDashboardViewModel(): ViewModel()
                     is BrokerMessage.EnvThresholdsHum -> hum.updateThresholds(msg.maxThAct, msg.maxThImp, msg.minThAct, msg.minThImp)
                     is BrokerMessage.EnvThresholdsMoisture1 -> moist1.updateThresholds(msg.maxThAct, msg.maxThImp, msg.minThAct, msg.minThImp)
                     is BrokerMessage.EnvThresholdsMoisture2 -> moist2.updateThresholds(msg.maxThAct, msg.maxThImp, msg.minThAct, msg.minThImp)
+                    is BrokerMessage.DeviceConnectionStatus -> processConnectionStatusUpdate(msg.status)
                 }
             }
 
@@ -417,16 +453,32 @@ class DeviceDashboardViewModel(): ViewModel()
 
     suspend fun deviceConnect(device: NsdServiceInfo)
     {
-        _isConnecting.value = true
         if(!SocketManager.isConnectionActive())
         {
+            _connectionSts.value = DeviceConnectionSts.CONNECTING
             _connectionSts.value = SocketManager.ConnectToDevice(device)
         }
         else
         {
             _connectionSts.value = DeviceConnectionSts.CONNECTED
         }
-        _isConnecting.value = false
     }
 
+    fun clearDisconnectState()
+    {
+        _connectionSts.value = DeviceConnectionSts.NOT_CONNECTED
+    }
+
+    fun processConnectionStatusUpdate(status: DeviceConnectionSts?)
+    {
+        if(status != null)
+        {
+            _connectionSts.value = status
+        }
+        else
+        {
+            // unverified status results unknown status
+            _connectionSts.value = DeviceConnectionSts.UNKNOWN
+        }
+    }
 }

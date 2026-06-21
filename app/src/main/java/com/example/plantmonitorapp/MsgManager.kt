@@ -456,3 +456,11 @@ fun IntToList(intVal: Int): List<Byte>
                      .array()
                      .toList()
 }
+
+fun ConstructDeviceConnectionStatusPacket(status: Byte): List<Byte> {
+    val tmpBuf = mutableListOf<Byte>()
+    tmpBuf.addAll(0, IntToList(CrossDevicePackets.XDEVMSG_CONNECT_STATUS.id))
+    tmpBuf.add(status)
+
+    return tmpBuf
+}

@@ -10,17 +10,27 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import java.net.Socket
 
-enum class DeviceConnectionSts {
-    NOT_CONNECTED,
-    DISCONNECTED,
-    CONNECTING,
-    CONNECTED
+enum class DeviceConnectionSts(val code: Byte) {
+    NOT_CONNECTED(0x00),
+    DISCONNECTED(0x01),
+    CONNECTING(0x02),
+    RECONNECTING(0x03),
+    CONNECTED(0x04),
+
+    UNKNOWN(0x05); // received but cannot determine the status
+
+    companion object {
+        fun fromCode(code: Byte): DeviceConnectionSts? =
+            entries.find { it.code == code }
+    }
 }
 
 enum class ConnectionAliveSts
@@ -42,7 +52,8 @@ object SocketManager: ViewModel()
     val packetChannel = Channel<MutableList<Byte>>(capacity = Channel.UNLIMITED)
     val txPacketCh = Channel<MutableList<Byte>>(capacity = Channel.UNLIMITED)
     val dashboardCh = Channel<MutableList<Byte>>(capacity = Channel.UNLIMITED)
-    val dashboardPktFlow = dashboardCh.receiveAsFlow()
+
+    private val pingResponse = MutableSharedFlow<Unit>()
 
     suspend fun ConnectToDevice(devInfo: NsdServiceInfo): DeviceConnectionSts
     {
@@ -107,6 +118,9 @@ object SocketManager: ViewModel()
         if(isActive)
         {
             socket.close()
+            XDevMessageBroker.inChannel.send(ConstructDeviceConnectionStatusPacket(
+                DeviceConnectionSts.DISCONNECTED.code
+            ).toMutableList())
             connectionSts = DeviceConnectionSts.DISCONNECTED
             devicePingSts = ConnectionAliveSts.NO_RSP
             isActive = false
@@ -244,6 +258,11 @@ object SocketManager: ViewModel()
             // checksum checks out
             if(calcChecksum(byteBuf, bufSize) == 0.toByte())
             {
+                // Device sent ping response
+                if(CrossDevicePackets.fromId(byteBuf[0].toInt()) == CrossDevicePackets.XDEVMSG_RSP_CONNECT_STS)
+                {
+                    pingResponse.tryEmit(Unit)
+                }
                 XDevMessageBroker.inChannel.send(byteBuf.toMutableList())
             }
         }
@@ -290,22 +309,42 @@ object SocketManager: ViewModel()
      * @return `true` if the device responds within the timeout period, `false` if
      *         the request times out or no response is received.
      **********************************************************************************************/
-    suspend fun checkConnectionSts(): Boolean {
+//    suspend fun checkConnectionSts(): Boolean {
+//
+//        devicePingSts = ConnectionAliveSts.AWAIT_RESPONSE
+//        // construct packet and send it to output stream
+//        txPacketCh.send(PktConnectSts().toMutableList())
+//        // wait response flag to change
+//        return withTimeoutOrNull(10_000) { // 10 seconds
+//
+//            XDevMessageBroker.messages.collect { msg ->
+//                when(msg)
+//                {
+//                    is BrokerMessage.DevicePingStatus -> {devicePingSts = msg.pingSts}
+//                    else -> Unit
+//                }
+//            }
+////            while (true) {
+////                if (devicePingSts == ConnectionAliveSts.RSP_RECEIVED) {
+////                    return@withTimeoutOrNull true
+////                }
+////                delay(10) // important: allows coroutine to be cancelled + timeout to work
+////            }
+//            // Not reachable
+//            false
+//        } ?: false
+//    }
 
-        devicePingSts = ConnectionAliveSts.AWAIT_RESPONSE
+//    1. need to send signal to broker when disconnection occurs or when a ping wasn't received and the app is retryinh
+//    2. broker needs to pass on the disconnection or the retrying to the dashboard so that it knows when to update the connection icon.
+//    3. dashboard icon updating needs to change so that it changes when viewmodel receoves the status and signals ui update.
+    suspend fun checkConnectionSts(): Boolean {
         // construct packet and send it to output stream
         txPacketCh.send(PktConnectSts().toMutableList())
         // wait response flag to change
         return withTimeoutOrNull(10_000) { // 10 seconds
-
-            while (true) {
-                if (devicePingSts == ConnectionAliveSts.RSP_RECEIVED) {
-                    return@withTimeoutOrNull true
-                }
-                delay(10) // important: allows coroutine to be cancelled + timeout to work
-            }
-            // Not reachable
-            false
+            pingResponse.first()
+            true
         } ?: false
     }
 
@@ -330,25 +369,27 @@ object SocketManager: ViewModel()
 
         while(isActive)
         {
-            if(checkConnectionSts())
+            if(retryCnt < 3)
             {
-                println("Ping Received")
-                // send another request 5 seconds from now
-                delay(5000)
-            }
-            // device did not reply
-            else
-            {
-                if(retryCnt < 3)
+                if(!checkConnectionSts())
                 {
+                    XDevMessageBroker.inChannel.send(ConstructDeviceConnectionStatusPacket(
+                        DeviceConnectionSts.RECONNECTING.code
+                    ).toMutableList())
                     retryCnt++
-                    connectionSts = DeviceConnectionSts.CONNECTING
-                    checkConnectionSts()
                 }
                 else
                 {
-                    Disconnect()
+                    println("Ping Received")
                 }
+
+                // send another request 5 seconds from now
+                delay(5000)
+            }
+            else
+            {
+                retryCnt = 0
+                Disconnect()
             }
         }
     }

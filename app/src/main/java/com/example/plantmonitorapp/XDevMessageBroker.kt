@@ -11,6 +11,8 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
+import kotlin.Byte
+import kotlin.collections.mutableListOf
 
 enum class CrossDevicePackets(val id: Int) {
 
@@ -60,13 +62,14 @@ enum class CrossDevicePackets(val id: Int) {
         private val map = CrossDevicePackets.entries.associateBy { it.id }
         fun fromId(id: Int): CrossDevicePackets? = map[id]
     }
+
+
 }
 
 enum class OutCommands(val id: Int)
 {
     OUTCMD_DEVICE_DASHBOARD_DATA_ENABLE(0),
     OUTCMD_DEVICE_DASHBOARD_DATA_DISABLE(1),
-
     OUTCMD_REQUEST_ENV_THRESHOLDS(2);
 
     companion object {
@@ -123,13 +126,15 @@ sealed class BrokerMessage
                                       val maxThImp: UShort,
                                       val minThAct: UShort,
                                       val minThImp: UShort) : BrokerMessage()
+
+    data class DeviceConnectionStatus(val status: DeviceConnectionSts?) : BrokerMessage()
 }
 
 object XDevMessageBroker
 {
     private val  _messages = MutableSharedFlow<BrokerMessage>()
     val messages = _messages.asSharedFlow()
-    val outChannel = Channel<Int>(capacity = Channel.UNLIMITED)
+    val outChannel = Channel<MutableList<Byte>>(capacity = Channel.UNLIMITED)
     val inChannel = Channel<MutableList<Byte>>(capacity = Channel.UNLIMITED)
 
     /***************************************************************************************************
@@ -173,9 +178,9 @@ object XDevMessageBroker
      * while sending packets to the transmit channel.
      **************************************************************************************************/
     private suspend fun processOutgoing()  {
-        for (command in outChannel)  {
+        for (packet in outChannel)  {
 
-            when(OutCommands.fromId(command))
+            when(OutCommands.fromId(packet[0].toInt()))
             {
                 OutCommands.OUTCMD_DEVICE_DASHBOARD_DATA_ENABLE -> {
                     SocketManager.txPacketCh.send(
@@ -199,6 +204,7 @@ object XDevMessageBroker
                 {
                     SocketManager.txPacketCh.send(ConstructEnvThresholdsRequest().toMutableList())
                 }
+
                 else -> {}
             }
             // construct packet
@@ -228,9 +234,15 @@ object XDevMessageBroker
             // determine message type
             when(CrossDevicePackets.fromId(packet[0].toInt()))
             {
+                CrossDevicePackets.XDEVMSG_CONNECT_STATUS ->
+                {
+                    _messages.emit(BrokerMessage.DeviceConnectionStatus(
+                        DeviceConnectionSts.fromCode(packet[4])
+                    ))
+                }
                 CrossDevicePackets.XDEVMSG_RSP_CONNECT_STS ->
                 {
-                    devicePingSts = ConnectionAliveSts.RSP_RECEIVED
+
                 }
 
                 CrossDevicePackets.XDEVMSG_RECURR_EVNT_REQUEST -> TODO()
@@ -397,6 +409,13 @@ object XDevMessageBroker
     {
         val data16 = (msg[idx].toInt() and 0xFF) or ((msg[idx + 1].toInt() and 0xFF) shl 8)
         return data16.toUShort()
+    }
+
+    fun constructParameterlessRequest(outRequest: Int): MutableList<Byte>
+    {
+        val request = mutableListOf<Byte>()
+        request.addAll(0, IntToList(outRequest))
+        return request
     }
 
     }
