@@ -70,7 +70,6 @@ fun DeviceDashboard(selectedDevice: NsdServiceInfo,
                     dashboardViewModel: DeviceDashboardViewModel = viewModel())
 {
     val name = selectedDevice.serviceName
-    val isConneting = dashboardViewModel.isConnecting.collectAsStateWithLifecycle(false)
     var connectionSts = dashboardViewModel.connectionSts.collectAsStateWithLifecycle(
         DeviceConnectionSts.NOT_CONNECTED)
 
@@ -83,10 +82,8 @@ fun DeviceDashboard(selectedDevice: NsdServiceInfo,
 
     DisposableEffect(Unit) {
         onDispose {
-            XDevMessageBroker.outChannel.trySend(OutCommands.OUTCMD_DEVICE_DASHBOARD_DATA_DISABLE.id)
-
             //call device dashboard viewmodel to deinitialise
-
+            dashboardViewModel.deviceDisconnect()
         }
     }
 
@@ -97,7 +94,7 @@ fun DeviceDashboard(selectedDevice: NsdServiceInfo,
             .fillMaxSize()
             .background(BackgroundGrey)
     ) {
-        TopPanel(name)
+        TopPanel(name, connectionSts.value)
         dashboardViewModel.temp.ElementImplement()
         dashboardViewModel.hum.ElementImplement()
         dashboardViewModel.moist1.ElementImplement()
@@ -320,7 +317,7 @@ class EnvInfoElement<T>(private val title: String,
 }
 
 @Composable
-fun TopPanel(deviceName: String)
+fun TopPanel(deviceName: String, connectionSts: DeviceConnectionSts)
 {
     ElevatedCard(
         shape = RoundedCornerShape(10.dp),
@@ -349,26 +346,26 @@ fun TopPanel(deviceName: String)
                     fontSize = 40.sp
                 )
 
-                TopPanelDevConnectStsIcon()
+                TopPanelDevConnectStsIcon(connectionSts)
             }
         }
     }
 }
 
 @Composable
-fun TopPanelDevConnectStsIcon()
+fun TopPanelDevConnectStsIcon(connectionSts: DeviceConnectionSts)
 {
-    val devConnectSts = SocketManager.connectionSts
-
     Icon(
         imageVector =
-            when(devConnectSts)
+            when(connectionSts)
             {
                 DeviceConnectionSts.CONNECTED ->
                 {
                     Icons.Outlined.Wifi
                 }
 
+                DeviceConnectionSts.UNKNOWN,
+                DeviceConnectionSts.RECONNECTING,
                 DeviceConnectionSts.CONNECTING ->
                 {
                     Icons.Filled.Wifi
@@ -382,13 +379,15 @@ fun TopPanelDevConnectStsIcon()
             },
         contentDescription = "Arrow",
         tint =
-            when(devConnectSts)
+            when(connectionSts)
             {
                 DeviceConnectionSts.CONNECTED ->
                 {
                     Color.Green
                 }
 
+                DeviceConnectionSts.UNKNOWN,
+                DeviceConnectionSts.RECONNECTING,
                 DeviceConnectionSts.CONNECTING ->
                 {
                     Color.Yellow
@@ -462,6 +461,13 @@ class DeviceDashboardViewModel(): ViewModel()
         {
             _connectionSts.value = DeviceConnectionSts.CONNECTED
         }
+    }
+
+    fun deviceDisconnect()
+    {
+        XDevMessageBroker.outChannel.trySend(
+            XDevMessageBroker.constructParameterlessRequest(
+                OutCommands.OUTCMD_DEVICE_DASHBOARD_DATA_DISABLE.id))
     }
 
     fun clearDisconnectState()

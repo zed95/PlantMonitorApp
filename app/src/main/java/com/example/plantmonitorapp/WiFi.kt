@@ -53,7 +53,7 @@ object SocketManager: ViewModel()
     val txPacketCh = Channel<MutableList<Byte>>(capacity = Channel.UNLIMITED)
     val dashboardCh = Channel<MutableList<Byte>>(capacity = Channel.UNLIMITED)
 
-    private val pingResponse = MutableSharedFlow<Unit>()
+    private val pingResponse = Channel<Unit>()
 
     suspend fun ConnectToDevice(devInfo: NsdServiceInfo): DeviceConnectionSts
     {
@@ -261,7 +261,7 @@ object SocketManager: ViewModel()
                 // Device sent ping response
                 if(CrossDevicePackets.fromId(byteBuf[0].toInt()) == CrossDevicePackets.XDEVMSG_RSP_CONNECT_STS)
                 {
-                    pingResponse.tryEmit(Unit)
+                    pingResponse.trySend(Unit)
                 }
                 XDevMessageBroker.inChannel.send(byteBuf.toMutableList())
             }
@@ -343,7 +343,8 @@ object SocketManager: ViewModel()
         txPacketCh.send(PktConnectSts().toMutableList())
         // wait response flag to change
         return withTimeoutOrNull(10_000) { // 10 seconds
-            pingResponse.first()
+            pingResponse.receive()
+            println("Ping Received in Timeout")
             true
         } ?: false
     }
