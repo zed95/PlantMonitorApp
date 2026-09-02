@@ -67,6 +67,7 @@ import java.sql.Connection
 
 @Composable
 fun DeviceDashboard(selectedDevice: NsdServiceInfo,
+                    onNavigateClick: (DeviceDashboardNavigation) -> Unit,
                     dashboardViewModel: DeviceDashboardViewModel = viewModel())
 {
     val name = selectedDevice.serviceName
@@ -94,6 +95,7 @@ fun DeviceDashboard(selectedDevice: NsdServiceInfo,
             .fillMaxSize()
             .background(BackgroundGrey)
     ) {
+        println("Receiving Status: ${connectionSts.value}")
         TopPanel(name, connectionSts.value)
         dashboardViewModel.temp.ElementImplement()
         dashboardViewModel.hum.ElementImplement()
@@ -142,7 +144,7 @@ fun AlertDisconnect(dashboardViewModel: DeviceDashboardViewModel)
             Text("Connection Status")
         },
         text = {
-            Text("Successfully connected to the device.")
+            Text("Lost connection to device.")
         },
         confirmButton = {
             Button(
@@ -154,23 +156,6 @@ fun AlertDisconnect(dashboardViewModel: DeviceDashboardViewModel)
             }
         }
     )
-}
-
-
-
-@Composable
-fun DeviceDashBaordName(name: String)
-{
-    Row(modifier = Modifier
-        .fillMaxWidth()
-        .padding(top = 40.dp),
-        horizontalArrangement = Arrangement.Center)
-    {
-        Text(text = name,
-            color = CustomSilver,
-            fontSize = 40.sp
-        )
-    }
 }
 
 class EnvInfoElement<T>(private val title: String,
@@ -316,93 +301,7 @@ class EnvInfoElement<T>(private val title: String,
 
 }
 
-@Composable
-fun TopPanel(deviceName: String, connectionSts: DeviceConnectionSts)
-{
-    ElevatedCard(
-        shape = RoundedCornerShape(10.dp),
-        elevation = CardDefaults.cardElevation(10.dp),
-        modifier = Modifier
-            .fillMaxWidth(1.0f)
-            .heightIn(min = 100.dp, max = 100.dp) // Maximum height
-    )
-    {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .fillMaxHeight()
-                .background(ElevatedGrey),   // optional spacing from the top
 
-        )
-        {
-            Row(modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 40.dp),
-                horizontalArrangement = Arrangement.Center)
-            {
-
-                Text(text = deviceName,
-                    color = CustomSilver,
-                    fontSize = 40.sp
-                )
-
-                TopPanelDevConnectStsIcon(connectionSts)
-            }
-        }
-    }
-}
-
-@Composable
-fun TopPanelDevConnectStsIcon(connectionSts: DeviceConnectionSts)
-{
-    Icon(
-        imageVector =
-            when(connectionSts)
-            {
-                DeviceConnectionSts.CONNECTED ->
-                {
-                    Icons.Outlined.Wifi
-                }
-
-                DeviceConnectionSts.UNKNOWN,
-                DeviceConnectionSts.RECONNECTING,
-                DeviceConnectionSts.CONNECTING ->
-                {
-                    Icons.Filled.Wifi
-                }
-
-                DeviceConnectionSts.NOT_CONNECTED,
-                DeviceConnectionSts.DISCONNECTED ->
-                {
-                    Icons.Filled.WifiOff
-                }
-            },
-        contentDescription = "Arrow",
-        tint =
-            when(connectionSts)
-            {
-                DeviceConnectionSts.CONNECTED ->
-                {
-                    Color.Green
-                }
-
-                DeviceConnectionSts.UNKNOWN,
-                DeviceConnectionSts.RECONNECTING,
-                DeviceConnectionSts.CONNECTING ->
-                {
-                    Color.Yellow
-                }
-                DeviceConnectionSts.NOT_CONNECTED,
-                DeviceConnectionSts.DISCONNECTED ->
-                {
-                    Color.Red
-                }
-            },
-        modifier = Modifier
-            .size(40.dp)
-            .padding(start = 4.dp)
-    )
-}
 
 class DeviceDashboardViewModel(): ViewModel()
 {

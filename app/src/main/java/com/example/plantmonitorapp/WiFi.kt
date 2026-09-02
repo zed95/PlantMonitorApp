@@ -121,7 +121,6 @@ object SocketManager: ViewModel()
             XDevMessageBroker.inChannel.send(ConstructDeviceConnectionStatusPacket(
                 DeviceConnectionSts.DISCONNECTED.code
             ).toMutableList())
-            connectionSts = DeviceConnectionSts.DISCONNECTED
             devicePingSts = ConnectionAliveSts.NO_RSP
             isActive = false
         }
@@ -309,42 +308,12 @@ object SocketManager: ViewModel()
      * @return `true` if the device responds within the timeout period, `false` if
      *         the request times out or no response is received.
      **********************************************************************************************/
-//    suspend fun checkConnectionSts(): Boolean {
-//
-//        devicePingSts = ConnectionAliveSts.AWAIT_RESPONSE
-//        // construct packet and send it to output stream
-//        txPacketCh.send(PktConnectSts().toMutableList())
-//        // wait response flag to change
-//        return withTimeoutOrNull(10_000) { // 10 seconds
-//
-//            XDevMessageBroker.messages.collect { msg ->
-//                when(msg)
-//                {
-//                    is BrokerMessage.DevicePingStatus -> {devicePingSts = msg.pingSts}
-//                    else -> Unit
-//                }
-//            }
-////            while (true) {
-////                if (devicePingSts == ConnectionAliveSts.RSP_RECEIVED) {
-////                    return@withTimeoutOrNull true
-////                }
-////                delay(10) // important: allows coroutine to be cancelled + timeout to work
-////            }
-//            // Not reachable
-//            false
-//        } ?: false
-//    }
-
-//    1. need to send signal to broker when disconnection occurs or when a ping wasn't received and the app is retryinh
-//    2. broker needs to pass on the disconnection or the retrying to the dashboard so that it knows when to update the connection icon.
-//    3. dashboard icon updating needs to change so that it changes when viewmodel receoves the status and signals ui update.
     suspend fun checkConnectionSts(): Boolean {
         // construct packet and send it to output stream
         txPacketCh.send(PktConnectSts().toMutableList())
         // wait response flag to change
         return withTimeoutOrNull(10_000) { // 10 seconds
             pingResponse.receive()
-            println("Ping Received in Timeout")
             true
         } ?: false
     }
@@ -381,6 +350,7 @@ object SocketManager: ViewModel()
                 }
                 else
                 {
+                    retryCnt = 0
                     println("Ping Received")
                 }
 
@@ -389,7 +359,6 @@ object SocketManager: ViewModel()
             }
             else
             {
-                retryCnt = 0
                 Disconnect()
             }
         }
