@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -80,6 +81,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
@@ -577,6 +579,12 @@ fun DeviceSelectionScreen(viewModel: BluetoothViewModel,
                           pairingLauncher: ActivityResultLauncher<IntentSenderRequest>,
                           navController: NavHostController)
 {
+    val isDeviceSelected by serviceViewModel.deviceSelected.collectAsStateWithLifecycle(false)
+    // 1. when state and device was selected, create an effect of greyed out background and loading circle with "connecting" text
+    // 2. try connecting to the device
+    // 3. signal back to the composable if connection was successful and either navigate to dashboard or display message of connection failure
+
+
     // when in the device selection screen, call the socket disconnection to prepare it to connect to another device
     // do it inside launch effect because this way it will only be called when the screen is entered and won't be done
     // redundantly during recompositions of the screens
@@ -585,72 +593,129 @@ fun DeviceSelectionScreen(viewModel: BluetoothViewModel,
         SocketManager.Disconnect()
     }
 
-    // This places the button in the center of the screen
-    Column(
+    // only attempt connection if device selection state changed.
+    LaunchedEffect(isDeviceSelected) {
+        if(isDeviceSelected)
+        {
+            // reset is device selected to allow another device to be selected and connection initated later.
+            // initiate connection here
+        }
+    }
+
+    // Use Box so we can overlay the loading UI
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(BackgroundGrey)
     ) {
-        Box(
+
+        // ----------------------------
+        // Main screen content
+        // ----------------------------
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 40.dp),   // optional spacing from the top
-            contentAlignment = Alignment.Center
-        )
-        {
-            Image(
-                painter = painterResource(id = R.drawable.start_screen_logo_grey),
-                contentDescription = "App logo",
+                .fillMaxSize()
+                .background(BackgroundGrey)
+        ) {
+
+            Box(
                 modifier = Modifier
-                    .size(240.dp)
+                    .fillMaxWidth()
+                    .padding(top = 40.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Image(
+                    painter = painterResource(
+                        id = R.drawable.start_screen_logo_grey
+                    ),
+                    contentDescription = "App logo",
+                    modifier = Modifier
+                        .size(240.dp)
+                        .padding(top = 16.dp)
+                )
+            }
+
+            Box(
+                modifier = Modifier.fillMaxWidth(),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "Available Devices",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = CustomGold
+                )
+            }
+
+            Box(
+                modifier = Modifier.fillMaxWidth(),
+                contentAlignment = Alignment.Center
+            ) {
+                ElevatedCard(
+                    shape = RoundedCornerShape(10.dp),
+                    elevation = CardDefaults.cardElevation(10.dp),
+                    modifier = Modifier
+                        .fillMaxWidth(0.9f)
+                        .heightIn(max = 400.dp)
+                ) {
+                    DeviceList(serviceViewModel)
+                }
+            }
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
                     .padding(top = 16.dp),
-            )
-        }
-
-        Box(
-            modifier = Modifier
-                .fillMaxWidth(),   // optional spacing from the top
-            contentAlignment = Alignment.Center
-        )
-        {
-            // Label
-            Text(
-                text = "Available Devices",
-                fontSize = 20.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = CustomGold,
-            )
-        }
-
-        Box(
-            modifier = Modifier
-                .fillMaxWidth(),   // optional spacing from the top
-            contentAlignment = Alignment.Center
-        )
-        {
-            ElevatedCard(
-                shape = RoundedCornerShape(10.dp),
-                elevation = CardDefaults.cardElevation(10.dp),
-                modifier = Modifier
-                    .fillMaxWidth(0.9f)
-                    .heightIn(max = 400.dp) // Maximum height
-            )
-            {
-                DeviceList( serviceViewModel, { navController.navigate("DeviceDashboard") })
+                horizontalArrangement = Arrangement.Center
+            ) {
+                SetupNewDevice(
+                    viewModel,
+                    pairingLauncher
+                )
             }
         }
-        Row(modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 16.dp),
-            horizontalArrangement = Arrangement.Center)
-        {
-            SetupNewDevice(viewModel, pairingLauncher)
+
+        // ----------------------------
+        // Loading overlay
+        // ----------------------------
+        if (isDeviceSelected.value) {
+
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Color.Black.copy(alpha = 0.45f)
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+
+                    CircularProgressIndicator(
+                        color = CustomGold,
+                        strokeWidth = 5.dp
+                    )
+
+                    Spacer(
+                        modifier = Modifier.height(20.dp)
+                    )
+
+                    Text(
+                        text = "Connecting...",
+                        color = Color.White,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
         }
     }
 }
 
 @Composable
-fun DeviceList(viewModel: ServiceViewModel, onDeviceSelected: () -> Unit)
+fun DeviceList(viewModel: ServiceViewModel)
 {
     val listState = rememberLazyListState()
     var selectedItem by remember{ mutableStateOf<NsdServiceInfo?>(null) }
@@ -672,8 +737,7 @@ fun DeviceList(viewModel: ServiceViewModel, onDeviceSelected: () -> Unit)
                 .selectable(selected = (selectedItem?.serviceName == item.serviceName), onClick = {selectedItem = item})
                 .clickable(            onClick = {selectedItem = item
                     println("Selected Item: ${selectedItem?.serviceName}")
-                    viewModel.selectDevice(item)
-                    onDeviceSelected()},
+                    viewModel.selectDevice(item)},
                     interactionSource = remember { MutableInteractionSource() },
                     indication = ripple(bounded = true, color = Color.Black)
                 ),

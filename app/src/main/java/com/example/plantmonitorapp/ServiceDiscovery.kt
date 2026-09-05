@@ -9,6 +9,8 @@ import android.service.controls.ControlsProviderService.TAG
 import android.util.Log
 import androidx.compose.runtime.mutableStateListOf
 import androidx.lifecycle.AndroidViewModel
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import java.util.concurrent.Executors
 
 class ServiceViewModel(application: Application) : AndroidViewModel(application) {
@@ -22,6 +24,8 @@ class ServiceViewModel(application: Application) : AndroidViewModel(application)
     // Selected device
     private lateinit var _selectedDevice: NsdServiceInfo
     lateinit var selectedDevice: NsdServiceInfo
+    private var _deviceSelected = MutableSharedFlow<Boolean>()
+    val deviceSelected = _deviceSelected.asSharedFlow()
 
     /***********************************************************************************************
      * Starts network service discovery for the configured service type.
@@ -198,6 +202,7 @@ class ServiceViewModel(application: Application) : AndroidViewModel(application)
     fun selectDevice(device: NsdServiceInfo) {
         _selectedDevice = device
         selectedDevice = _selectedDevice
+        _deviceSelected.tryEmit(true)
     }
 
     /***********************************************************************************************
