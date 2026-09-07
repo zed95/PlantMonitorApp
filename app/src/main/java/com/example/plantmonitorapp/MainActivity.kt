@@ -553,6 +553,7 @@ fun ConnectingDialog(
 fun MyScreen(viewModel: BluetoothViewModel, pairingLauncher: ActivityResultLauncher<IntentSenderRequest>) {
     val navController = rememberNavController()
     val serviceViewModel: ServiceViewModel = viewModel()
+    val connectionViewModel: ConnectionViewModel = viewModel()
 
     NavHost(navController = navController, startDestination = "DeviceSelection",
         enterTransition = { slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Start, tween(400)) },
@@ -562,12 +563,16 @@ fun MyScreen(viewModel: BluetoothViewModel, pairingLauncher: ActivityResultLaunc
     {
         composable("DeviceSelection")
         {
-            DeviceSelectionScreen(viewModel, serviceViewModel, pairingLauncher, navController)
+            DeviceSelectionScreen(viewModel,
+                                  serviceViewModel,
+                                  connectionViewModel,
+                                  pairingLauncher,
+                                  navController)
         }
 
         composable("DeviceDashboard")
         {
-            DeviceDashboard(serviceViewModel.selectedDevice)
+            DeviceDashboard(connectionViewModel, serviceViewModel.selectedDevice.serviceName)
         }
     }
 
@@ -576,10 +581,13 @@ fun MyScreen(viewModel: BluetoothViewModel, pairingLauncher: ActivityResultLaunc
 @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
 fun DeviceSelectionScreen(viewModel: BluetoothViewModel,
                           serviceViewModel: ServiceViewModel,
+                          connectionViewModel: ConnectionViewModel,
                           pairingLauncher: ActivityResultLauncher<IntentSenderRequest>,
                           navController: NavHostController)
 {
     val isDeviceSelected by serviceViewModel.deviceSelected.collectAsStateWithLifecycle(false)
+    var connectionSts = connectionViewModel.connectionSts.collectAsStateWithLifecycle(
+        DeviceConnectionSts.NOT_CONNECTED)
     // 1. when state and device was selected, create an effect of greyed out background and loading circle with "connecting" text
     // 2. try connecting to the device
     // 3. signal back to the composable if connection was successful and either navigate to dashboard or display message of connection failure
@@ -597,8 +605,9 @@ fun DeviceSelectionScreen(viewModel: BluetoothViewModel,
     LaunchedEffect(isDeviceSelected) {
         if(isDeviceSelected)
         {
+            println("Device selected, connect")
             // reset is device selected to allow another device to be selected and connection initated later.
-            // initiate connection here
+            connectionViewModel.deviceConnect(serviceViewModel.selectedDevice)
         }
     }
 
@@ -674,42 +683,49 @@ fun DeviceSelectionScreen(viewModel: BluetoothViewModel,
             }
         }
 
-        // ----------------------------
-        // Loading overlay
-        // ----------------------------
-        if (isDeviceSelected.value) {
 
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        Color.Black.copy(alpha = 0.45f)
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
+        when(connectionSts.value)
+        {
+            DeviceConnectionSts.FAILED_TO_CONNECT -> AlertFailedToConnect(connectionViewModel)
+            DeviceConnectionSts.DISCONNECTED -> AlertDisconnect(connectionViewModel)
+            DeviceConnectionSts.CONNECTING ->
+            {
+                // Connecting Overlay
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Color.Black.copy(alpha = 0.45f)
+                        ),
+                    contentAlignment = Alignment.Center
                 ) {
 
-                    CircularProgressIndicator(
-                        color = CustomGold,
-                        strokeWidth = 5.dp
-                    )
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
 
-                    Spacer(
-                        modifier = Modifier.height(20.dp)
-                    )
+                        CircularProgressIndicator(
+                            color = CustomGold,
+                            strokeWidth = 5.dp
+                        )
 
-                    Text(
-                        text = "Connecting...",
-                        color = Color.White,
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
+                        Spacer(
+                            modifier = Modifier.height(20.dp)
+                        )
+
+                        Text(
+                            text = "Connecting...",
+                            color = Color.White,
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
                 }
             }
+            DeviceConnectionSts.NOT_CONNECTED -> Unit
+            DeviceConnectionSts.CONNECTED -> navController.navigate("DeviceDashboard")
+            else -> AlertFailedToConnect(connectionViewModel)
         }
     }
 }
@@ -737,7 +753,7 @@ fun DeviceList(viewModel: ServiceViewModel)
                 .selectable(selected = (selectedItem?.serviceName == item.serviceName), onClick = {selectedItem = item})
                 .clickable(            onClick = {selectedItem = item
                     println("Selected Item: ${selectedItem?.serviceName}")
-                    viewModel.selectDevice(item)},
+                    viewModel.selectDevice(selectedItem!!)},
                     interactionSource = remember { MutableInteractionSource() },
                     indication = ripple(bounded = true, color = Color.Black)
                 ),

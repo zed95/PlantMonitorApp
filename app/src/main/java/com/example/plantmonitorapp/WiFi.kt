@@ -25,7 +25,9 @@ enum class DeviceConnectionSts(val code: Byte) {
     RECONNECTING(0x03),
     CONNECTED(0x04),
 
-    UNKNOWN(0x05); // received but cannot determine the status
+    FAILED_TO_CONNECT(0x05),
+
+    UNKNOWN(0x06); // received but cannot determine the status
 
     companion object {
         fun fromCode(code: Byte): DeviceConnectionSts? =
@@ -68,7 +70,7 @@ object SocketManager: ViewModel()
         }
         else
         {
-            connectionSts = DeviceConnectionSts.DISCONNECTED
+            connectionSts = DeviceConnectionSts.FAILED_TO_CONNECT
         }
 
         return connectionSts

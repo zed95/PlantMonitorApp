@@ -4,6 +4,8 @@ import android.app.Dialog
 import android.net.nsd.NsdServiceInfo
 import android.util.Log
 import android.widget.Button
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -55,6 +57,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
 import com.example.plantmonitorapp.ui.theme.BackgroundGrey
 import com.example.plantmonitorapp.ui.theme.CustomSilver
 import com.example.plantmonitorapp.ui.theme.ElevatedGrey
@@ -66,28 +71,49 @@ import kotlinx.coroutines.launch
 import java.sql.Connection
 
 @Composable
-fun DeviceDashboard(selectedDevice: NsdServiceInfo,
-                    onNavigateClick: (DeviceDashboardNavigation) -> Unit,
-                    dashboardViewModel: DeviceDashboardViewModel = viewModel())
+fun DeviceDashboard(connectionViewModel: ConnectionViewModel, deviceName: String)
 {
-    val name = selectedDevice.serviceName
-    var connectionSts = dashboardViewModel.connectionSts.collectAsStateWithLifecycle(
-        DeviceConnectionSts.NOT_CONNECTED)
+    val navController = rememberNavController()
 
-    // connect to device selected
-    LaunchedEffect(Unit)
-    {
-        dashboardViewModel.deviceConnect(selectedDevice)
-        dashboardViewModel.initialise()
-    }
+
 
     DisposableEffect(Unit) {
         onDispose {
             //call device dashboard viewmodel to deinitialise
-            dashboardViewModel.deviceDisconnect()
+            connectionViewModel.deviceDisconnect()
         }
     }
 
+    Column(
+        modifier = Modifier.fillMaxSize()
+    ) {
+        DeviceConnectionStatusBar(deviceName, connectionViewModel)
+
+        NavHost(navController = navController, startDestination = "EnvironmentalInfoOverview",
+            enterTransition = { slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Start, tween(400)) },
+            exitTransition = { slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Start, tween(400)) },
+            popEnterTransition = { slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.End, tween(400)) },
+            popExitTransition = { slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.End, tween(400)) })
+        {
+
+
+            composable("EnvironmentalInfoOverview")
+            {
+                EnvironmentalInfoOverview()
+            }
+        }
+    }
+}
+
+@Composable
+fun EnvironmentalInfoOverview(dashboardViewModel: DeviceDashboardViewModel = viewModel())
+{
+    // connect to device selected
+    LaunchedEffect(Unit)
+    {
+        dashboardViewModel.initialise()
+        dashboardViewModel.requestDashboardInfo()
+    }
 
     // This places the button in the center of the screen
     Column(
@@ -95,67 +121,11 @@ fun DeviceDashboard(selectedDevice: NsdServiceInfo,
             .fillMaxSize()
             .background(BackgroundGrey)
     ) {
-        println("Receiving Status: ${connectionSts.value}")
-        TopPanel(name, connectionSts.value)
         dashboardViewModel.temp.ElementImplement()
         dashboardViewModel.hum.ElementImplement()
         dashboardViewModel.moist1.ElementImplement()
         dashboardViewModel.moist2.ElementImplement()
-
-        when(connectionSts.value)
-        {
-            DeviceConnectionSts.DISCONNECTED -> AlertDisconnect(dashboardViewModel)
-            DeviceConnectionSts.CONNECTING -> ConnectingDialog()
-            DeviceConnectionSts.NOT_CONNECTED -> Unit
-            DeviceConnectionSts.CONNECTED -> dashboardViewModel.requestDashboardInfo()
-            else -> Unit
-        }
-
     }
-
-
-}
-
-@Composable
-fun ConnectingDialog()
-{
-    Dialog(onDismissRequest = {}) {
-        Card {
-            Column(
-                modifier = Modifier.padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                CircularProgressIndicator()
-                Spacer(Modifier.height(16.dp))
-                Text("Connecting...")
-            }
-        }
-    }
-}
-
-@Composable
-fun AlertDisconnect(dashboardViewModel: DeviceDashboardViewModel)
-{
-    AlertDialog(
-        onDismissRequest = {
-            dashboardViewModel.clearDisconnectState()
-        },
-        title = {
-            Text("Connection Status")
-        },
-        text = {
-            Text("Lost connection to device.")
-        },
-        confirmButton = {
-            Button(
-                onClick = {
-                    dashboardViewModel.clearDisconnectState()
-                }
-            ) {
-                Text("OK")
-            }
-        }
-    )
 }
 
 class EnvInfoElement<T>(private val title: String,
@@ -347,31 +317,6 @@ class DeviceDashboardViewModel(): ViewModel()
             }
 
         }
-    }
-
-    suspend fun deviceConnect(device: NsdServiceInfo)
-    {
-        if(!SocketManager.isConnectionActive())
-        {
-            _connectionSts.value = DeviceConnectionSts.CONNECTING
-            _connectionSts.value = SocketManager.ConnectToDevice(device)
-        }
-        else
-        {
-            _connectionSts.value = DeviceConnectionSts.CONNECTED
-        }
-    }
-
-    fun deviceDisconnect()
-    {
-        XDevMessageBroker.outChannel.trySend(
-            XDevMessageBroker.constructParameterlessRequest(
-                OutCommands.OUTCMD_DEVICE_DASHBOARD_DATA_DISABLE.id))
-    }
-
-    fun clearDisconnectState()
-    {
-        _connectionSts.value = DeviceConnectionSts.NOT_CONNECTED
     }
 
     fun processConnectionStatusUpdate(status: DeviceConnectionSts?)
