@@ -93,6 +93,8 @@ import com.example.plantmonitorapp.ui.theme.CustomGold
 import com.example.plantmonitorapp.ui.theme.CustomSilver
 import com.example.plantmonitorapp.ui.theme.ElevatedGrey
 import com.example.plantmonitorapp.ui.theme.PlantMonitorAppTheme
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.snapshots.SnapshotStateList
 
 enum class DeviceSetupState {
     Idle,
@@ -572,7 +574,7 @@ fun MyScreen(viewModel: BluetoothViewModel, pairingLauncher: ActivityResultLaunc
 
         composable("DeviceDashboard")
         {
-            DeviceDashboard(connectionViewModel, serviceViewModel.selectedDevice.serviceName)
+            DeviceDashboard(connectionViewModel, serviceViewModel.selectedDevice.collectAsState().value!!.serviceName)
         }
     }
 
@@ -585,9 +587,12 @@ fun DeviceSelectionScreen(viewModel: BluetoothViewModel,
                           pairingLauncher: ActivityResultLauncher<IntentSenderRequest>,
                           navController: NavHostController)
 {
-    val isDeviceSelected by serviceViewModel.deviceSelected.collectAsStateWithLifecycle(false)
+//    val isDeviceSelected by serviceViewModel.deviceSelected.collectAsStateWithLifecycle()
     var connectionSts = connectionViewModel.connectionSts.collectAsStateWithLifecycle(
         DeviceConnectionSts.NOT_CONNECTED)
+
+    val selectedDevice by serviceViewModel.selectedDevice
+        .collectAsStateWithLifecycle()
     // 1. when state and device was selected, create an effect of greyed out background and loading circle with "connecting" text
     // 2. try connecting to the device
     // 3. signal back to the composable if connection was successful and either navigate to dashboard or display message of connection failure
@@ -598,18 +603,15 @@ fun DeviceSelectionScreen(viewModel: BluetoothViewModel,
     // redundantly during recompositions of the screens
     LaunchedEffect(Unit) {
         println("Disconnecting on exit to main screen")
-        SocketManager.Disconnect()
     }
 
     // only attempt connection if device selection state changed.
-    LaunchedEffect(isDeviceSelected) {
-        if(isDeviceSelected)
-        {
-            println("Device selected, connect")
-            // reset is device selected to allow another device to be selected and connection initated later.
-            connectionViewModel.deviceConnect(serviceViewModel.selectedDevice)
-        }
-    }
+//    LaunchedEffect(selectedDevice) {
+//        selectedDevice?.let { device ->
+//            println("Device selected, connect")
+//            connectionViewModel.deviceConnect(device)
+//        }
+//    }
 
     // Use Box so we can overlay the loading UI
     Box(
@@ -666,7 +668,10 @@ fun DeviceSelectionScreen(viewModel: BluetoothViewModel,
                         .fillMaxWidth(0.9f)
                         .heightIn(max = 400.dp)
                 ) {
-                    DeviceList(serviceViewModel)
+                    DeviceList(serviceViewModel.discoveredDevices,
+                        onDeviceSelected = {device ->
+                            serviceViewModel.selectDevice(device)
+                            connectionViewModel.deviceConnect(device)})
                 }
             }
 
@@ -731,11 +736,11 @@ fun DeviceSelectionScreen(viewModel: BluetoothViewModel,
 }
 
 @Composable
-fun DeviceList(viewModel: ServiceViewModel)
+fun DeviceList(discoveredDevices: SnapshotStateList<NsdServiceInfo>,
+               onDeviceSelected:(NsdServiceInfo) -> Unit)
 {
     val listState = rememberLazyListState()
     var selectedItem by remember{ mutableStateOf<NsdServiceInfo?>(null) }
-    val devices = viewModel.discoveredDevices
 
     LazyColumn(state = listState,
         modifier = Modifier.fillMaxWidth().
@@ -744,7 +749,7 @@ fun DeviceList(viewModel: ServiceViewModel)
         background(ElevatedGrey)
     )
     {
-        items(items = devices)
+        items(items = discoveredDevices)
         { item ->
 
             Row(modifier = Modifier
@@ -753,7 +758,7 @@ fun DeviceList(viewModel: ServiceViewModel)
                 .selectable(selected = (selectedItem?.serviceName == item.serviceName), onClick = {selectedItem = item})
                 .clickable(            onClick = {selectedItem = item
                     println("Selected Item: ${selectedItem?.serviceName}")
-                    viewModel.selectDevice(selectedItem!!)},
+                    onDeviceSelected(selectedItem!!)},
                     interactionSource = remember { MutableInteractionSource() },
                     indication = ripple(bounded = true, color = Color.Black)
                 ),

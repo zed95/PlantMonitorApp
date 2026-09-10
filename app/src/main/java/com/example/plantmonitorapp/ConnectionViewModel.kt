@@ -1,8 +1,11 @@
 package com.example.plantmonitorapp
 import android.net.nsd.NsdServiceInfo
 import androidx.lifecycle.ViewModel
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 
 class ConnectionViewModel(): ViewModel()
 {
@@ -10,7 +13,7 @@ class ConnectionViewModel(): ViewModel()
     private val _connectionSts = MutableStateFlow(DeviceConnectionSts.NOT_CONNECTED)
     val connectionSts = _connectionSts.asStateFlow()
 
-    suspend fun deviceConnect(device: NsdServiceInfo)
+    fun deviceConnect(device: NsdServiceInfo) = CoroutineScope(Dispatchers.IO).launch()
     {
         if(!SocketManager.isConnectionActive())
         {
@@ -55,5 +58,7 @@ class ConnectionViewModel(): ViewModel()
         XDevMessageBroker.outChannel.trySend(
             XDevMessageBroker.constructParameterlessRequest(
                 OutCommands.OUTCMD_DEVICE_DASHBOARD_DATA_DISABLE.id))
+        SocketManager.Disconnect()
+        _connectionSts.value = DeviceConnectionSts.NOT_CONNECTED
     }
 }

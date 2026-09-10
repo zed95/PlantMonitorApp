@@ -10,7 +10,9 @@ import android.util.Log
 import androidx.compose.runtime.mutableStateListOf
 import androidx.lifecycle.AndroidViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
 import java.util.concurrent.Executors
 
 class ServiceViewModel(application: Application) : AndroidViewModel(application) {
@@ -22,10 +24,17 @@ class ServiceViewModel(application: Application) : AndroidViewModel(application)
     private val callbacks = mutableListOf<NsdManager.ServiceInfoCallback>()
 
     // Selected device
-    private lateinit var _selectedDevice: NsdServiceInfo
-    lateinit var selectedDevice: NsdServiceInfo
-    private var _deviceSelected = MutableSharedFlow<Boolean>()
-    val deviceSelected = _deviceSelected.asSharedFlow()
+//    private lateinit var _selectedDevice: NsdServiceInfo
+
+    private val _selectedDevice =
+        MutableStateFlow<NsdServiceInfo?>(null)
+
+    val selectedDevice =
+        _selectedDevice.asStateFlow()
+
+//    lateinit var selectedDevice: NsdServiceInfo
+    private var _deviceSelected = MutableStateFlow(false)
+    val deviceSelected = _deviceSelected.asStateFlow()
 
     /***********************************************************************************************
      * Starts network service discovery for the configured service type.
@@ -200,9 +209,12 @@ class ServiceViewModel(application: Application) : AndroidViewModel(application)
      * @param device the network service device to select
      **********************************************************************************************/
     fun selectDevice(device: NsdServiceInfo) {
-        _selectedDevice = device
-        selectedDevice = _selectedDevice
-        _deviceSelected.tryEmit(true)
+        _selectedDevice.value = device
+//        _deviceSelected.value = true
+    }
+
+    fun resetDeviceSelected() {
+        _selectedDevice.value = null
     }
 
     /***********************************************************************************************
