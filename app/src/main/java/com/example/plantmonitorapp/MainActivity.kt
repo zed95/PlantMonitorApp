@@ -120,6 +120,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private val nsdServiceViewModel: ServiceViewModel by viewModels()
+    val connectionViewModel: ConnectionViewModel  by viewModels()
 
     @SuppressLint("MissingPermission")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -131,7 +132,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             PlantMonitorAppTheme {
 
-            MyScreen(btViewModel, pairingLauncher)
+            MyScreen(btViewModel, pairingLauncher, connectionViewModel)
 
             }
 
@@ -552,10 +553,12 @@ fun ConnectingDialog(
 
 @Composable
 @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
-fun MyScreen(viewModel: BluetoothViewModel, pairingLauncher: ActivityResultLauncher<IntentSenderRequest>) {
+fun MyScreen(viewModel: BluetoothViewModel,
+             pairingLauncher: ActivityResultLauncher<IntentSenderRequest>,
+             connectionViewModel: ConnectionViewModel) {
     val navController = rememberNavController()
     val serviceViewModel: ServiceViewModel = viewModel()
-    val connectionViewModel: ConnectionViewModel = viewModel()
+
 
     NavHost(navController = navController, startDestination = "DeviceSelection",
         enterTransition = { slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Start, tween(400)) },
@@ -588,30 +591,14 @@ fun DeviceSelectionScreen(viewModel: BluetoothViewModel,
                           navController: NavHostController)
 {
 //    val isDeviceSelected by serviceViewModel.deviceSelected.collectAsStateWithLifecycle()
-    var connectionSts = connectionViewModel.connectionSts.collectAsStateWithLifecycle(
+    val connectionSts by connectionViewModel.connectionSts.collectAsStateWithLifecycle(
         DeviceConnectionSts.NOT_CONNECTED)
 
-    val selectedDevice by serviceViewModel.selectedDevice
-        .collectAsStateWithLifecycle()
-    // 1. when state and device was selected, create an effect of greyed out background and loading circle with "connecting" text
-    // 2. try connecting to the device
-    // 3. signal back to the composable if connection was successful and either navigate to dashboard or display message of connection failure
-
-
-    // when in the device selection screen, call the socket disconnection to prepare it to connect to another device
-    // do it inside launch effect because this way it will only be called when the screen is entered and won't be done
-    // redundantly during recompositions of the screens
     LaunchedEffect(Unit) {
-        println("Disconnecting on exit to main screen")
+        connectionViewModel.navigateToDashboard.collect {
+            navController.navigate("DeviceDashboard")
+        }
     }
-
-    // only attempt connection if device selection state changed.
-//    LaunchedEffect(selectedDevice) {
-//        selectedDevice?.let { device ->
-//            println("Device selected, connect")
-//            connectionViewModel.deviceConnect(device)
-//        }
-//    }
 
     // Use Box so we can overlay the loading UI
     Box(
@@ -689,7 +676,7 @@ fun DeviceSelectionScreen(viewModel: BluetoothViewModel,
         }
 
 
-        when(connectionSts.value)
+        when(connectionSts)
         {
             DeviceConnectionSts.FAILED_TO_CONNECT -> AlertFailedToConnect(connectionViewModel)
             DeviceConnectionSts.DISCONNECTED -> AlertDisconnect(connectionViewModel)
@@ -729,7 +716,7 @@ fun DeviceSelectionScreen(viewModel: BluetoothViewModel,
                 }
             }
             DeviceConnectionSts.NOT_CONNECTED -> Unit
-            DeviceConnectionSts.CONNECTED -> navController.navigate("DeviceDashboard")
+            DeviceConnectionSts.CONNECTED -> Unit
             else -> AlertFailedToConnect(connectionViewModel)
         }
     }

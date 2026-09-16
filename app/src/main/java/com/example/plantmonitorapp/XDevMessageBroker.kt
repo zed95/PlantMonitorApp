@@ -164,6 +164,12 @@ object XDevMessageBroker
         }
     }
 
+    fun closeChannels()
+    {
+        inChannel.cancel()
+        outChannel.cancel()
+    }
+
     /***************************************************************************************************
      * Processes outgoing commands received from the outbound command channel.
      *

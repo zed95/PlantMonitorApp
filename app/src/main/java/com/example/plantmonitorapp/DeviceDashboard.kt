@@ -75,7 +75,9 @@ fun DeviceDashboard(connectionViewModel: ConnectionViewModel, deviceName: String
 {
     val navController = rememberNavController()
 
-
+    LaunchedEffect(Unit) {
+        connectionViewModel.openCommsChannels()
+    }
 
     DisposableEffect(Unit) {
         onDispose {
@@ -90,6 +92,7 @@ fun DeviceDashboard(connectionViewModel: ConnectionViewModel, deviceName: String
         DeviceConnectionStatusBar(deviceName, connectionViewModel)
 
         NavHost(navController = navController, startDestination = "EnvironmentalInfoOverview",
+            modifier = Modifier.weight(1f),
             enterTransition = { slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Start, tween(400)) },
             exitTransition = { slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Start, tween(400)) },
             popEnterTransition = { slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.End, tween(400)) },
@@ -276,8 +279,6 @@ class EnvInfoElement<T>(private val title: String,
 class DeviceDashboardViewModel(): ViewModel()
 {
     private var initialised = false
-    private val _connectionSts = MutableStateFlow(DeviceConnectionSts.NOT_CONNECTED)
-    val connectionSts = _connectionSts.asStateFlow()
     val temp = EnvInfoElement<Float>("Temperature", Icons.Filled.Thermostat, Color(0xFFFF7070), "\u2103")
     val hum = EnvInfoElement<Float>("Humidity", Icons.Filled.Cloud, Color(0xFF68ADFF), "%")
     val moist1 = EnvInfoElement<UShort>("Soil Moisture 1", Icons.Filled.WaterDrop, Color(0xFF003FFF), "%")
@@ -294,13 +295,11 @@ class DeviceDashboardViewModel(): ViewModel()
                 OutCommands.OUTCMD_REQUEST_ENV_THRESHOLDS.id))
     }
 
-    suspend fun initialise()
+    fun initialise() = viewModelScope.launch()
     {
         if(!initialised)
         {
-            XDevMessageBroker.initChannels()
             initialised = true
-
             XDevMessageBroker.messages.collect { msg ->
                 when(msg)
                 {
@@ -312,23 +311,9 @@ class DeviceDashboardViewModel(): ViewModel()
                     is BrokerMessage.EnvThresholdsHum -> hum.updateThresholds(msg.maxThAct, msg.maxThImp, msg.minThAct, msg.minThImp)
                     is BrokerMessage.EnvThresholdsMoisture1 -> moist1.updateThresholds(msg.maxThAct, msg.maxThImp, msg.minThAct, msg.minThImp)
                     is BrokerMessage.EnvThresholdsMoisture2 -> moist2.updateThresholds(msg.maxThAct, msg.maxThImp, msg.minThAct, msg.minThImp)
-                    is BrokerMessage.DeviceConnectionStatus -> processConnectionStatusUpdate(msg.status)
+                    else -> Unit
                 }
             }
-
-        }
-    }
-
-    fun processConnectionStatusUpdate(status: DeviceConnectionSts?)
-    {
-        if(status != null)
-        {
-            _connectionSts.value = status
-        }
-        else
-        {
-            // unverified status results unknown status
-            _connectionSts.value = DeviceConnectionSts.UNKNOWN
         }
     }
 }

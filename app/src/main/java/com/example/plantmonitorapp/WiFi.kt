@@ -16,6 +16,8 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import java.io.InputStream
+import java.io.OutputStream
 import java.net.Socket
 
 enum class DeviceConnectionSts(val code: Byte) {
@@ -47,13 +49,17 @@ enum class ConnectionAliveSts
 
 object SocketManager: ViewModel()
 {
-    lateinit var socket: Socket
+    var socket: Socket? = null
     var connectionSts by mutableStateOf(DeviceConnectionSts.DISCONNECTED)
     var devicePingSts by mutableStateOf(ConnectionAliveSts.NO_RSP)
     var isActive = false  // indicates whether connection is active or not
     val packetChannel = Channel<MutableList<Byte>>(capacity = Channel.UNLIMITED)
     val txPacketCh = Channel<MutableList<Byte>>(capacity = Channel.UNLIMITED)
     val dashboardCh = Channel<MutableList<Byte>>(capacity = Channel.UNLIMITED)
+
+    private var writer: OutputStream? = null
+    private var reader: InputStream? = null
+
 
     private val pingResponse = Channel<Unit>()
 
@@ -96,6 +102,8 @@ object SocketManager: ViewModel()
             try {
                 // Connect to the server
                 socket = Socket(ip.removePrefix("/"), port)
+                reader = socket?.getInputStream()
+                writer = socket?.getOutputStream()
                 isActive = true
                 true
             } catch (e: Exception) {
@@ -119,10 +127,18 @@ object SocketManager: ViewModel()
     {
         if(isActive)
         {
-            socket.close()
+            startReading().cancel()
+            startOutStream().cancel()
+            socket?.close()
+            // reset socket and its reader/writers to null to allow another assignment socket + input and output streams
+            socket = null
+            reader = null
+            writer = null
+
             XDevMessageBroker.inChannel.send(ConstructDeviceConnectionStatusPacket(
                 DeviceConnectionSts.DISCONNECTED.code
             ).toMutableList())
+//            XDevMessageBroker.closeChannels()
             devicePingSts = ConnectionAliveSts.NO_RSP
             isActive = false
         }
@@ -144,7 +160,6 @@ object SocketManager: ViewModel()
      * reading loop terminates automatically when the connection becomes inactive.
      **********************************************************************************************/
     fun startReading() = CoroutineScope(Dispatchers.IO).launch {
-        val reader = socket.getInputStream()
         // stores byte extracted from input stream
         var byte: Byte = 0
         // stores bytes from input stream for processing
@@ -163,9 +178,9 @@ object SocketManager: ViewModel()
                   xDevCommPacketReadState.WAIT_FOR_SOP ->
                   {
                       // loop until no available bytes or state hasn't changed
-                      while((reader.available() > 0) && packetReadState == xDevCommPacketReadState.WAIT_FOR_SOP)
+                      while((reader!!.available() > 0) && packetReadState == xDevCommPacketReadState.WAIT_FOR_SOP)
                       {
-                          byte = reader.read().toByte()
+                          byte = reader!!.read().toByte()
                           if(byte == SOP)
                           {
                               buffer.add(byte)
@@ -176,9 +191,9 @@ object SocketManager: ViewModel()
 
                   xDevCommPacketReadState.WAIT_EOP ->
                   {
-                      while(reader.available() > 0 && packetReadState == xDevCommPacketReadState.WAIT_EOP)
+                      while(reader!!.available() > 0 && packetReadState == xDevCommPacketReadState.WAIT_EOP)
                       {
-                          byte = reader.read().toByte()
+                          byte = reader!!.read().toByte()
                           buffer.add(byte)
                           if(byte == EOP)
                           {
@@ -282,12 +297,10 @@ object SocketManager: ViewModel()
      **********************************************************************************************/
     fun startOutStream() = CoroutineScope(Dispatchers.IO).launch()
     {
-        val writer = socket.getOutputStream()
-
         try {
             while (isActive) {
                 for (packet in txPacketCh) {
-                    writer.write(packet.toByteArray())
+                    writer!!.write(packet.toByteArray())
                 }
             }
         } catch (e: Exception) {

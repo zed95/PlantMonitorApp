@@ -47,13 +47,13 @@ import com.example.plantmonitorapp.ui.theme.ElevatedGrey
 fun DeviceConnectionStatusBar(deviceName: String,
                               connectionViewModel: ConnectionViewModel)
 {
-    var connectionSts = connectionViewModel.connectionSts.collectAsStateWithLifecycle(
+    val connectionSts = connectionViewModel.connectionSts.collectAsStateWithLifecycle(
         DeviceConnectionSts.CONNECTED)
 
     // This places the button in the center of the screen
     Column(
         modifier = Modifier
-            .fillMaxSize()
+            .fillMaxWidth()
             .background(BackgroundGrey)
     ) {
         println("Receiving Status: ${connectionSts.value}")
@@ -132,6 +132,8 @@ fun TopPanelDevConnectStsIcon(connectionSts: DeviceConnectionSts)
                 {
                     Icons.Filled.WifiOff
                 }
+
+
             },
         contentDescription = "Arrow",
         tint =
