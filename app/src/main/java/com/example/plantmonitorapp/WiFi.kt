@@ -8,6 +8,7 @@ import androidx.lifecycle.ViewModel
 import com.example.plantmonitorapp.SocketManager.packetChannel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -57,6 +58,8 @@ object SocketManager: ViewModel()
     val txPacketCh = Channel<MutableList<Byte>>(capacity = Channel.UNLIMITED)
     val dashboardCh = Channel<MutableList<Byte>>(capacity = Channel.UNLIMITED)
 
+    private var inputStreamCoroutine: Job? = null
+    private var outputtreamCoroutine: Job? = null
     private var writer: OutputStream? = null
     private var reader: InputStream? = null
 
@@ -123,24 +126,23 @@ object SocketManager: ViewModel()
      *
      * Calling this function when no connection is active has no effect.
      **********************************************************************************************/
-    fun Disconnect() = CoroutineScope(Dispatchers.IO).launch()
+    fun Disconnect()
     {
         if(isActive)
         {
-            startReading().cancel()
-            startOutStream().cancel()
+            inputStreamCoroutine?.cancel()
+            outputtreamCoroutine?.cancel()
+            inputStreamCoroutine = null
+            outputtreamCoroutine = null
             socket?.close()
             // reset socket and its reader/writers to null to allow another assignment socket + input and output streams
             socket = null
             reader = null
             writer = null
 
-            XDevMessageBroker.inChannel.send(ConstructDeviceConnectionStatusPacket(
-                DeviceConnectionSts.DISCONNECTED.code
-            ).toMutableList())
-//            XDevMessageBroker.closeChannels()
             devicePingSts = ConnectionAliveSts.NO_RSP
             isActive = false
+            println("isActive set: $isActive")
         }
     }
 
@@ -159,7 +161,7 @@ object SocketManager: ViewModel()
      * Any I/O exceptions encountered during reading are caught and logged. The
      * reading loop terminates automatically when the connection becomes inactive.
      **********************************************************************************************/
-    fun startReading() = CoroutineScope(Dispatchers.IO).launch {
+    fun startReading()  {
         // stores byte extracted from input stream
         var byte: Byte = 0
         // stores bytes from input stream for processing
@@ -167,51 +169,54 @@ object SocketManager: ViewModel()
         // stores packet read state
         var packetReadState = xDevCommPacketReadState.WAIT_FOR_SOP
 
-        // also start coroutine to decode packets that will be reconstructed
-        decodePacket()
+        inputStreamCoroutine = CoroutineScope(Dispatchers.IO).launch()
+        {
+            // also start coroutine to decode packets that will be reconstructed
+            decodePacket()
 
-        try {
-            // connection active
-            while (isActive) {
-              when (packetReadState)
-              {
-                  xDevCommPacketReadState.WAIT_FOR_SOP ->
-                  {
-                      // loop until no available bytes or state hasn't changed
-                      while((reader!!.available() > 0) && packetReadState == xDevCommPacketReadState.WAIT_FOR_SOP)
-                      {
-                          byte = reader!!.read().toByte()
-                          if(byte == SOP)
-                          {
-                              buffer.add(byte)
-                              packetReadState = xDevCommPacketReadState.WAIT_EOP
-                          }
-                      }
-                  }
+            try {
+                // connection active
+                while (isActive) {
+                    when (packetReadState)
+                    {
+                        xDevCommPacketReadState.WAIT_FOR_SOP ->
+                        {
+                            // loop until no available bytes or state hasn't changed
+                            while((reader!!.available() > 0) && packetReadState == xDevCommPacketReadState.WAIT_FOR_SOP)
+                            {
+                                byte = reader!!.read().toByte()
+                                if(byte == SOP)
+                                {
+                                    buffer.add(byte)
+                                    packetReadState = xDevCommPacketReadState.WAIT_EOP
+                                }
+                            }
+                        }
 
-                  xDevCommPacketReadState.WAIT_EOP ->
-                  {
-                      while(reader!!.available() > 0 && packetReadState == xDevCommPacketReadState.WAIT_EOP)
-                      {
-                          byte = reader!!.read().toByte()
-                          buffer.add(byte)
-                          if(byte == EOP)
-                          {
-                              packetChannel.send(buffer.toMutableList())
-                              buffer.clear()
-                              packetReadState = xDevCommPacketReadState.WAIT_FOR_SOP
-                          }
-                      }
-                  }
+                        xDevCommPacketReadState.WAIT_EOP ->
+                        {
+                            while(reader!!.available() > 0 && packetReadState == xDevCommPacketReadState.WAIT_EOP)
+                            {
+                                byte = reader!!.read().toByte()
+                                buffer.add(byte)
+                                if(byte == EOP)
+                                {
+                                    packetChannel.send(buffer.toMutableList())
+                                    buffer.clear()
+                                    packetReadState = xDevCommPacketReadState.WAIT_FOR_SOP
+                                }
+                            }
+                        }
 
-                  xDevCommPacketReadState.READ_HEADER -> {}
-                  xDevCommPacketReadState.READ_PAYLOAD -> {}
-                  xDevCommPacketReadState.VALIDATE -> {}
-              }
+                        xDevCommPacketReadState.READ_HEADER -> {}
+                        xDevCommPacketReadState.READ_PAYLOAD -> {}
+                        xDevCommPacketReadState.VALIDATE -> {}
+                    }
 
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
-        } catch (e: Exception) {
-            e.printStackTrace()
         }
     }
 
@@ -279,6 +284,7 @@ object SocketManager: ViewModel()
                 {
                     pingResponse.trySend(Unit)
                 }
+                println("Sending Packet To In Channel")
                 XDevMessageBroker.inChannel.send(byteBuf.toMutableList())
             }
         }
@@ -295,16 +301,19 @@ object SocketManager: ViewModel()
      * inactive or the coroutine is cancelled. Any I/O exceptions encountered
      * during writing are caught and logged.
      **********************************************************************************************/
-    fun startOutStream() = CoroutineScope(Dispatchers.IO).launch()
+    fun startOutStream()
     {
-        try {
-            while (isActive) {
-                for (packet in txPacketCh) {
-                    writer!!.write(packet.toByteArray())
+        outputtreamCoroutine = CoroutineScope(Dispatchers.IO).launch()
+        {
+            try {
+                while (isActive) {
+                    for (packet in txPacketCh) {
+                        writer!!.write(packet.toByteArray())
+                    }
                 }
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
-        } catch (e: Exception) {
-            e.printStackTrace()
         }
     }
 
@@ -374,6 +383,9 @@ object SocketManager: ViewModel()
             }
             else
             {
+                XDevMessageBroker.inChannel.send(ConstructDeviceConnectionStatusPacket(
+                    DeviceConnectionSts.DISCONNECTED.code
+                ).toMutableList())
                 Disconnect()
             }
         }
@@ -393,6 +405,7 @@ object SocketManager: ViewModel()
             connectionActive = true
         }
 
+        println("isActive: $isActive")
         return connectionActive
     }
 }

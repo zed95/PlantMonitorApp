@@ -6,7 +6,11 @@ import com.example.plantmonitorapp.SocketManager.isActive
 import com.example.plantmonitorapp.SocketManager.packetChannel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -132,10 +136,14 @@ sealed class BrokerMessage
 
 object XDevMessageBroker
 {
-    private val  _messages = MutableSharedFlow<BrokerMessage>()
+    private val  _messages = MutableSharedFlow<BrokerMessage>(0, 64)
     val messages = _messages.asSharedFlow()
     val outChannel = Channel<MutableList<Byte>>(capacity = Channel.UNLIMITED)
     val inChannel = Channel<MutableList<Byte>>(capacity = Channel.UNLIMITED)
+
+    var processingChannels: Job? = null
+
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     /***************************************************************************************************
      * Starts the background coroutines responsible for processing incoming and
@@ -151,23 +159,26 @@ object XDevMessageBroker
      * Note: This function does not retain references to the launched coroutines
      * and therefore cannot directly monitor, cancel, or await their completion.
      **************************************************************************************************/
-    fun initChannels()
+    suspend fun initChannels()
     {
-        CoroutineScope(Dispatchers.IO).launch()
-        {
-            processOutgoing()
+        closeChannels()
+        drain(inChannel)
+        drain(outChannel)
+        processingChannels = scope.launch {
+            launch { processIncoming() }
+            launch { processOutgoing() }
         }
 
-        CoroutineScope(Dispatchers.IO).launch()
-        {
-            processIncoming()
-        }
     }
 
-    fun closeChannels()
+    suspend fun closeChannels()
     {
-        inChannel.cancel()
-        outChannel.cancel()
+        processingChannels?.cancelAndJoin()
+        processingChannels = null
+    }
+
+    private fun drain(ch: Channel<MutableList<Byte>>) {
+        while (ch.tryReceive().isSuccess) { /* discard stale packets */ }
     }
 
     /***************************************************************************************************
@@ -189,6 +200,7 @@ object XDevMessageBroker
             when(OutCommands.fromId(packet[0].toInt()))
             {
                 OutCommands.OUTCMD_DEVICE_DASHBOARD_DATA_ENABLE -> {
+                    println("Received Request OUTCMD_DEVICE_DASHBOARD_DATA_ENABLE")
                     SocketManager.txPacketCh.send(
                         ConstructRecurrentEventRequest(
                             RecurrentEventId.RECURR_EVNT_ENV_METRICS_XDEV.id,

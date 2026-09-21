@@ -1,12 +1,9 @@
 package com.example.plantmonitorapp
-import android.app.AlertDialog
-import android.app.Dialog
-import android.net.nsd.NsdServiceInfo
-import android.util.Log
-import android.widget.Button
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,6 +20,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowRight
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Cloud
@@ -48,6 +46,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -57,6 +56,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -76,12 +76,13 @@ fun DeviceDashboard(connectionViewModel: ConnectionViewModel, deviceName: String
     val navController = rememberNavController()
 
     LaunchedEffect(Unit) {
+        println("Opening Channels")
         connectionViewModel.openCommsChannels()
     }
 
     DisposableEffect(Unit) {
+
         onDispose {
-            //call device dashboard viewmodel to deinitialise
             connectionViewModel.deviceDisconnect()
         }
     }
@@ -102,18 +103,25 @@ fun DeviceDashboard(connectionViewModel: ConnectionViewModel, deviceName: String
 
             composable("EnvironmentalInfoOverview")
             {
-                EnvironmentalInfoOverview()
+                EnvironmentalInfoOverview(navController)
+            }
+
+            composable("TemperatureSettings")
+            {
+                TemperatureSettingsScreen()
             }
         }
     }
 }
 
 @Composable
-fun EnvironmentalInfoOverview(dashboardViewModel: DeviceDashboardViewModel = viewModel())
+fun EnvironmentalInfoOverview(navController: NavController,
+                              dashboardViewModel: DeviceDashboardViewModel = viewModel())
 {
     // connect to device selected
     LaunchedEffect(Unit)
     {
+        println("Initialise Env Overview")
         dashboardViewModel.initialise()
         dashboardViewModel.requestDashboardInfo()
     }
@@ -124,10 +132,10 @@ fun EnvironmentalInfoOverview(dashboardViewModel: DeviceDashboardViewModel = vie
             .fillMaxSize()
             .background(BackgroundGrey)
     ) {
-        dashboardViewModel.temp.ElementImplement()
-        dashboardViewModel.hum.ElementImplement()
-        dashboardViewModel.moist1.ElementImplement()
-        dashboardViewModel.moist2.ElementImplement()
+        dashboardViewModel.temp.ElementImplement(onClick = {navController.navigate("TemperatureSettings")})
+        dashboardViewModel.hum.ElementImplement(onClick = {navController.navigate("TemperatureSettings")})
+        dashboardViewModel.moist1.ElementImplement(onClick = {navController.navigate("TemperatureSettings")})
+        dashboardViewModel.moist2.ElementImplement(onClick = {navController.navigate("TemperatureSettings")})
     }
 }
 
@@ -148,7 +156,7 @@ class EnvInfoElement<T>(private val title: String,
     private var minThAct = mutableStateOf<T?>(null)
 
     @Composable
-    fun ElementImplement()
+    fun ElementImplement(onClick: () -> Unit)
     {
         ElevatedCard(
             shape = RoundedCornerShape(10.dp),
@@ -209,7 +217,7 @@ class EnvInfoElement<T>(private val title: String,
                     }
 
                     Column(modifier = Modifier
-                        .fillMaxWidth()
+                        .weight(1f)
                         .padding(top = 5.dp)) {
                         Text(
                             text = (
@@ -251,9 +259,28 @@ class EnvInfoElement<T>(private val title: String,
                             fontSize = 15.sp,
                         )
                     }
+
+                    NavigationTriangle(modifier = Modifier
+                                    .size(50.dp)
+                                    .align(Alignment.CenterVertically),
+                                    onClick = onClick)
                 }
             }
         }
+    }
+
+    @Composable
+    fun NavigationTriangle(modifier: Modifier = Modifier,
+        onClick: () -> Unit
+    ) {
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.ArrowRight,
+            contentDescription = "Arrow",
+            tint = CustomSilver,
+            modifier = modifier
+                .padding(start = 4.dp)
+                .clickable(onClick = onClick)
+        )
     }
 
     fun updateEnvMetrics(current: T, max: T, min: T)
@@ -279,17 +306,18 @@ class EnvInfoElement<T>(private val title: String,
 class DeviceDashboardViewModel(): ViewModel()
 {
     private var initialised = false
-    val temp = EnvInfoElement<Float>("Temperature", Icons.Filled.Thermostat, Color(0xFFFF7070), "\u2103")
+    val temp = EnvInfoElement<Float>("Temperature", Icons.Filled.Thermostat, Color(0xFFFF7070), "\u2103", )
     val hum = EnvInfoElement<Float>("Humidity", Icons.Filled.Cloud, Color(0xFF68ADFF), "%")
     val moist1 = EnvInfoElement<UShort>("Soil Moisture 1", Icons.Filled.WaterDrop, Color(0xFF003FFF), "%")
     val moist2 = EnvInfoElement<UShort>("Soil Moisture 2", Icons.Filled.WaterDrop, Color(0xFF003FFF), "%")
 
     fun requestDashboardInfo() = viewModelScope.launch()
     {
+        println("Sending Request To Out Channel")
         XDevMessageBroker.outChannel.send(
             XDevMessageBroker.constructParameterlessRequest(
                 OutCommands.OUTCMD_DEVICE_DASHBOARD_DATA_ENABLE.id))
-
+        println("Sending Request To Out Channel")
         XDevMessageBroker.outChannel.send(
             XDevMessageBroker.constructParameterlessRequest(
                 OutCommands.OUTCMD_REQUEST_ENV_THRESHOLDS.id))

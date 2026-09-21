@@ -580,7 +580,6 @@ fun MyScreen(viewModel: BluetoothViewModel,
             DeviceDashboard(connectionViewModel, serviceViewModel.selectedDevice.collectAsState().value!!.serviceName)
         }
     }
-
 }
 @Composable
 @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
