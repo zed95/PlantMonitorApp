@@ -229,8 +229,3 @@ fun ConnectingDialog()
         }
     }
 }
-
-class ConnectionStatusBarViewModel(): ViewModel()
-{
-
-}
