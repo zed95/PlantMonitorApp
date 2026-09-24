@@ -16,6 +16,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModel
@@ -82,11 +83,16 @@ fun TemperatureSettingsScreen(tempSettingsViewModel: TemperatureSettingsViewMode
                         color = CustomSilver,
                         fontSize = 24.sp,
                         fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(bottom = 32.dp)
+                        modifier = Modifier.padding(bottom = 20.dp, top = 10.dp)
                     )
 
+                    SectionDivider("Thresholds", CustomSilver, )
+
+                    Spacer(Modifier.height(20.dp))
+
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth()
+                                           .padding(horizontal = 10.dp),
                         horizontalArrangement = Arrangement.spacedBy(20.dp)
                     ) {
                         TemperatureField(
@@ -106,7 +112,8 @@ fun TemperatureSettingsScreen(tempSettingsViewModel: TemperatureSettingsViewMode
                     Spacer(Modifier.height(20.dp))
 
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth()
+                                           .padding(horizontal = 10.dp),
                         horizontalArrangement = Arrangement.spacedBy(20.dp)
                     ) {
                         TemperatureField(
@@ -153,14 +160,7 @@ private fun TemperatureField(
     onValueChange: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Column(modifier = modifier) {
-        Text(
-            text = label,
-            color = CustomSilver,
-            fontWeight = FontWeight.Medium,
-            fontSize = 14.sp,
-            modifier = Modifier.padding(bottom = 6.dp)
-        )
+    Box(modifier = modifier) {
         OutlinedTextField(
             value = value,
             onValueChange = { newValue ->
@@ -178,18 +178,64 @@ private fun TemperatureField(
             ),
             modifier = Modifier.fillMaxWidth()
         )
+
+        // Fixed-size label, always pinned to the border. The background
+        // "erases" the border line behind the text to fake the notch —
+        // swap it for whatever this field actually sits on.
+        Text(
+            text = label,
+            color = CustomSilver,
+            fontSize = 12.sp,
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .offset(x = 12.dp, y = (-12).dp)
+                .background(ElevatedGrey)
+                .padding(horizontal = 4.dp)
+        )
+    }
+}
+
+@Composable
+fun SectionDivider(
+    title: String,
+    color: Color = MaterialTheme.colorScheme.outline,
+    thickness: Dp = 1.dp,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier.fillMaxWidth()
+                           .padding(horizontal = 20.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        HorizontalDivider(
+            modifier = Modifier.weight(1f),
+            thickness = thickness,
+            color = color
+        )
+        Text(
+            text = title,
+            color = color,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.padding(horizontal = 12.dp)
+        )
+        HorizontalDivider(
+            modifier = Modifier.weight(1f),
+            thickness = thickness,
+            color = color
+        )
     }
 }
 
 class TemperatureSettingsViewModel(): ViewModel()
 {
-    private val _lowerActivationTh = MutableStateFlow("")
+    private val _lowerActivationTh = MutableStateFlow("0.0")
     val lowerActivationTh = _lowerActivationTh.asStateFlow()
-    private val _lowerDeactivationTh = MutableStateFlow("")
+    private val _lowerDeactivationTh = MutableStateFlow("0.0")
     val lowerDeactivationTh = _lowerDeactivationTh.asStateFlow()
-    private val _upperActivationTh = MutableStateFlow("")
+    private val _upperActivationTh = MutableStateFlow("0.0")
     val upperActivationTh = _upperActivationTh.asStateFlow()
-    private val _upperDectivationTh = MutableStateFlow("")
+    private val _upperDectivationTh = MutableStateFlow("0.0")
     val upperDectivationTh = _upperDectivationTh.asStateFlow()
 
     fun updateLowerActivationTh(strFloat: String)
