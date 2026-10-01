@@ -50,6 +50,96 @@ enum class RecurrentEventParamId(val id: UByte)
     RECURR_EVNT_PARAM_PERIOD(1U);
 }
 
+
+
+enum class MessageType(val value: Int) {
+    GET(0x01),
+    SET(0x02),
+    SET_ACK(0x03),
+    RESPONSE(0x04),
+    SET_ACK_RESPONSE(0x05)
+}
+
+enum class Category(val value: Int) {
+    SYSTEM_STATUS(0x00),
+    SENSOR_READINGS(0x01),
+    SETTINGS(0x02)
+}
+
+// Message IDs belonging to the Settings category
+enum class SettingsId(val value: Int) {
+    ENV_THRESHOLDS(0x01)
+}
+
+// IDs are scoped per category, so each category gets its own enum
+enum class SystemId(val value: Int) {
+    CONNECTION_PING(0x00),
+    PERIODIC_ENV_UPDATES(0x01),
+
+}
+
+
+/***************************************************************************************************
+ * Builds a complete framed packet.
+ *
+ * Layout before stuffing:
+ *   [Message Type 1][Category 1][ID 1][Payload Size 4][Payload N][Checksum 1]
+ *
+ * The checksum is calculated over everything before it. The packet is then byte stuffed and
+ * wrapped with SOP and EOP.
+ **************************************************************************************************/
+private fun buildFramedPacket(
+    type: MessageType,
+    category: Category,
+    id: Int,
+    payload: ByteArray = ByteArray(0)
+): ByteArray
+{
+    val tmpBuf = mutableListOf<Byte>()
+    val stuffedMsg = mutableListOf<Byte>()
+
+    tmpBuf.add(type.value.toByte())
+    tmpBuf.add(category.value.toByte())
+    tmpBuf.add(id.toByte())
+    tmpBuf.addAll(payloadSizeBytes(payload.size))
+    tmpBuf.addAll(payload.toList())
+
+    val checksum: Byte = calcChecksum(tmpBuf.toByteArray(), tmpBuf.size)
+    tmpBuf.add(checksum)
+
+    stuffedMsg.addAll(stuffPacket(tmpBuf.toByteArray(), tmpBuf.size).toList())
+    stuffedMsg.add(0, SOP)
+    stuffedMsg.add(EOP)
+
+    return stuffedMsg.toByteArray()
+}
+
+/***************************************************************************************************
+ * Constructs a SET request to enable or disable periodic environmental data updates.
+ *
+ * SET (0x02), System/Status (0x00), ID 0x01, payload size 2:
+ *   [Event ID 1 (0-255)][Enable/Disable 1 (0 or 1)]
+ *
+ * @param eventId Event identifier, 0-255.
+ * @param enable  true to enable periodic updates, false to disable.
+ **************************************************************************************************/
+fun ConstructEnablePeriodicEnvUpdates(eventId: Int, enable: Boolean): ByteArray
+{
+    require(eventId in 0..255) { "eventId must be 0-255" }
+
+    val payload = byteArrayOf(
+        eventId.toByte(),
+        (if (enable) 1 else 0).toByte()
+    )
+
+    return buildFramedPacket(
+        MessageType.SET,
+        Category.SYSTEM_STATUS,
+        SystemId.PERIODIC_ENV_UPDATES.value,
+        payload
+    )
+}
+
 /***************************************************************************************************
  * Constructs a packet requesting that an ESP32 connect to a Wi-Fi network.
  *
@@ -346,6 +436,20 @@ fun PktConnectSts(): ByteArray
 }
 
 /***************************************************************************************************
+ * Constructs a connection status ping request.
+ *
+ * GET (0x01), System/Status (0x00), ID 0x02, payload size 0.
+ **************************************************************************************************/
+fun ConstructConnectionStatusPing(): ByteArray
+{
+    return buildFramedPacket(
+        MessageType.GET,
+        Category.SYSTEM_STATUS,
+        SystemId.CONNECTION_PING.value
+    )
+}
+
+/***************************************************************************************************
  * Constructs a recurrent event request packet for transmission to a connected
  * device.
  *
@@ -399,40 +503,25 @@ fun ConstructRecurrentEventRequest(evntId: UByte, paramId: UByte, value: UInt): 
 }
 
 /***************************************************************************************************
- * Constructs a request packet for retrieving environmental threshold values
- * from a connected device.
+ * Constructs a GET request for the environmental thresholds settings.
  *
- * The packet contains:
- * - A packet identifier indicating a "Get Environmental Thresholds" request.
- * - A payload size field set to `1`, representing the checksum-only payload.
- * - A checksum calculated over the packet contents prior to checksum insertion.
+ * Packet layout (before stuffing / framing):
+ *   [Message Type 1][Category 1][ID 1][Payload Size 4][Payload N][Checksum 1]
  *
- * After the packet is assembled, byte stuffing is applied to escape any
- * protocol-reserved values. Start-of-packet (SOP) and end-of-packet (EOP)
- * markers are then added to produce the final framed message.
+ * For this request: GET (0x01), Settings (0x02), ID 0x01, payload size 0 (no payload).
+ * Payload size counts only the payload, not the checksum byte.
  *
- * @return A byte array containing the fully encoded and framed request packet
- * ready for transmission.
+ * After assembly, byte stuffing is applied, then SOP and EOP are added.
+ *
+ * @return A fully stuffed and framed byte array ready for transmission.
  **************************************************************************************************/
 fun ConstructEnvThresholdsRequest(): ByteArray
 {
-    val tmpBuf = mutableListOf<Byte>()
-    var checksum: Byte = 0;
-    val stuffedMsg = mutableListOf<Byte>()
-
-    // Packet ID
-    tmpBuf.add(CrossDevicePackets.XDEVMSG_GET_ENV_THRESHOLDS.id.toByte())
-    // payload size = 1 = only checksum byte
-    tmpBuf.addAll(IntToList(1))
-    checksum = calcChecksum(tmpBuf.toByteArray(), tmpBuf.size)
-    tmpBuf.add(checksum)
-
-    // stuff packet, then add SOP and EOP
-    stuffedMsg.addAll(stuffPacket(tmpBuf.toByteArray(), tmpBuf.size).toList())
-    stuffedMsg.add(0, SOP) // insert SOP at beginning of list
-    stuffedMsg.add(EOP) // add end of packet identifier
-
-    return stuffedMsg.toByteArray()
+    return buildFramedPacket(
+        MessageType.GET,
+        Category.SETTINGS,
+        SettingsId.ENV_THRESHOLDS.value
+    )
 }
 
 /***************************************************************************************************
@@ -456,6 +545,15 @@ fun IntToList(intVal: Int): List<Byte>
                      .array()
                      .toList()
 }
+
+/** Encodes a payload size as 4 bytes. Little endian assumed. */
+fun payloadSizeBytes(size: Int): List<Byte> =
+    listOf(
+        (size and 0xFF).toByte(),
+        ((size shr 8) and 0xFF).toByte(),
+        ((size shr 16) and 0xFF).toByte(),
+        ((size shr 24) and 0xFF).toByte()
+    )
 
 fun ConstructDeviceConnectionStatusPacket(status: Byte): List<Byte> {
     val tmpBuf = mutableListOf<Byte>()

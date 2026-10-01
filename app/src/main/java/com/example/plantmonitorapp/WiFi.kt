@@ -21,6 +21,11 @@ import java.io.InputStream
 import java.io.OutputStream
 import java.net.Socket
 
+enum class AwaitPacketState {
+    WAIT_FOR_SOP,
+    WAIT_EOP,
+}
+
 enum class DeviceConnectionSts(val code: Byte) {
     NOT_CONNECTED(0x00),
     DISCONNECTED(0x01),
@@ -167,7 +172,7 @@ object SocketManager: ViewModel()
         // stores bytes from input stream for processing
         val buffer = mutableListOf<Byte>()
         // stores packet read state
-        var packetReadState = xDevCommPacketReadState.WAIT_FOR_SOP
+        var packetReadState = AwaitPacketState.WAIT_FOR_SOP
 
         inputStreamCoroutine = CoroutineScope(Dispatchers.IO).launch()
         {
@@ -179,38 +184,35 @@ object SocketManager: ViewModel()
                 while (isActive) {
                     when (packetReadState)
                     {
-                        xDevCommPacketReadState.WAIT_FOR_SOP ->
+                        AwaitPacketState.WAIT_FOR_SOP ->
                         {
                             // loop until no available bytes or state hasn't changed
-                            while((reader!!.available() > 0) && packetReadState == xDevCommPacketReadState.WAIT_FOR_SOP)
+                            while((reader!!.available() > 0) && (packetReadState == AwaitPacketState.WAIT_FOR_SOP))
                             {
-                                byte = reader!!.read().toByte()
-                                if(byte == SOP)
+                                if(reader!!.read().toByte() == SOP)
                                 {
-                                    buffer.add(byte)
-                                    packetReadState = xDevCommPacketReadState.WAIT_EOP
+                                    packetReadState = AwaitPacketState.WAIT_EOP
                                 }
                             }
                         }
 
-                        xDevCommPacketReadState.WAIT_EOP ->
+                        AwaitPacketState.WAIT_EOP ->
                         {
-                            while(reader!!.available() > 0 && packetReadState == xDevCommPacketReadState.WAIT_EOP)
+                            while((reader!!.available() > 0) && (packetReadState == AwaitPacketState.WAIT_EOP))
                             {
                                 byte = reader!!.read().toByte()
-                                buffer.add(byte)
                                 if(byte == EOP)
                                 {
                                     packetChannel.send(buffer.toMutableList())
                                     buffer.clear()
-                                    packetReadState = xDevCommPacketReadState.WAIT_FOR_SOP
+                                    packetReadState = AwaitPacketState.WAIT_FOR_SOP
+                                }
+                                else
+                                {
+                                    buffer.add(byte)
                                 }
                             }
                         }
-
-                        xDevCommPacketReadState.READ_HEADER -> {}
-                        xDevCommPacketReadState.READ_PAYLOAD -> {}
-                        xDevCommPacketReadState.VALIDATE -> {}
                     }
 
                 }
@@ -247,15 +249,12 @@ object SocketManager: ViewModel()
     /***********************************************************************************************
      * Decodes and processes a received communication packet.
      *
-     * This function takes a raw packet buffer, removes protocol framing bytes
-     * (start-of-packet and end-of-packet), performs byte unstuffing, and validates
-     * the packet using a checksum. Only packets that successfully pass all protocol
+     * This function takes a packet with SOP and EOP removed, performs byte unstuffing,
+     * and validates the packet using a checksum. Only packets that successfully pass all protocol
      * checks are processed further.
      *
      * Once validated, the packet type is determined from the message identifier and
-     * routed to the appropriate subsystem. Status and telemetry packets are
-     * forwarded to [dashboardCh], while connection-related packets update internal
-     * connection state.
+     * routed to the appropriate subsystem.
      *
      * Packets with invalid framing, unstuffing errors, or checksum failures are
      * silently discarded.
@@ -267,9 +266,7 @@ object SocketManager: ViewModel()
     {
         val byteBuf = buffer.toByteArray()
         var bufSize = buffer.size
-        // remove SOP and EOP and update size index
-        RemSopEop(byteBuf)
-        bufSize = bufSize - 2
+
         // unstuff packet and assign unstuffed packet length to bufSize
         bufSize = unstuffPacket(byteBuf, bufSize)
 

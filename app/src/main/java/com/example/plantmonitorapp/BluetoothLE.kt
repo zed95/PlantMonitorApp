@@ -39,15 +39,6 @@ import java.util.concurrent.Executor
 import java.util.regex.Pattern
 import kotlin.coroutines.coroutineContext
 
-
-enum class xDevCommPacketReadState {
-    WAIT_FOR_SOP,
-    READ_HEADER,
-    READ_PAYLOAD,
-    WAIT_EOP,
-    VALIDATE
-}
-
 enum class BondingStatus(val id: Int) {
     SUCCESS(0),
     FAILED(1),
