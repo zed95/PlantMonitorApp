@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
+import java.net.Socket
 import kotlin.Byte
 import kotlin.collections.mutableListOf
 
@@ -200,21 +201,18 @@ object XDevMessageBroker
             when(OutCommands.fromId(packet[0].toInt()))
             {
                 OutCommands.OUTCMD_DEVICE_DASHBOARD_DATA_ENABLE -> {
-                    println("Received Request OUTCMD_DEVICE_DASHBOARD_DATA_ENABLE")
                     SocketManager.txPacketCh.send(
-                        ConstructRecurrentEventRequest(
+                        ConstructEnablePeriodicEnvUpdates(
                             RecurrentEventId.RECURR_EVNT_ENV_METRICS_XDEV.id,
-                            RecurrentEventParamId.RECURR_EVNT_PARAM_ENABLED.id,
-                            1.toUInt()).toMutableList()
+                            true).toMutableList()
                     )
                 }
 
                 OutCommands.OUTCMD_DEVICE_DASHBOARD_DATA_DISABLE -> {
                     SocketManager.txPacketCh.send(
-                        ConstructRecurrentEventRequest(
+                        ConstructEnablePeriodicEnvUpdates(
                             RecurrentEventId.RECURR_EVNT_ENV_METRICS_XDEV.id,
-                            RecurrentEventParamId.RECURR_EVNT_PARAM_ENABLED.id,
-                            0.toUInt()).toMutableList()
+                            false).toMutableList()
                     )
                 }
 
@@ -225,8 +223,6 @@ object XDevMessageBroker
 
                 else -> {}
             }
-            // construct packet
-            // send to wifi for transmission
         }
     }
 
@@ -236,10 +232,6 @@ object XDevMessageBroker
      * This coroutine continuously consumes packets from `inChannel`, determines
      * the packet type from the packet identifier, and dispatches the packet to
      * the appropriate handler.
-     *
-     * Connection status response packets update the internal connection state,
-     * while environmental data packets are unpacked and processed by their
-     * respective handler functions.
      *
      * This function suspends while waiting for packets to become available from
      * the channel.
@@ -264,15 +256,59 @@ object XDevMessageBroker
                 }
 
                 CrossDevicePackets.XDEVMSG_RECURR_EVNT_REQUEST -> TODO()
-                CrossDevicePackets.XDEVMSG_ENV_METRICS -> unpackEnvMetrics(packet)
+                CrossDevicePackets.XDEVMSG_ENV_METRICS -> unpackEnvMetrics(packet) //done
                 CrossDevicePackets.XDEVMSG_ENV_THRESHOLDS_REPLY -> unpackEnvThresholds(packet)
                 else -> {}
             }
 
 
-            // broadcast to relevant section
+            when(packet[PacketByteId.MESSAGE_TYPE.index])
+            {
+                MessageType.RESPONSE.value.toByte(),
+                MessageType.SET_ACK_RESPONSE.value.toByte() -> {processResponseTypes(packet)}
+                MessageType.GET.value.toByte() -> Unit
+                MessageType.SET.value.toByte() -> Unit
+                MessageType.SET_ACK.value.toByte() -> Unit
+            }
+
         }
     }
+
+    private suspend fun processResponseTypes(packet: MutableList<Byte>)
+    {
+        when(packet[PacketByteId.CATEGORY.index])
+        {
+            Category.SYSTEM_STATUS.value.toByte() -> {processSystemStatusCategory(packet)}
+            Category.SENSOR_READINGS.value.toByte() -> {processSensorReadingCategory(packet)}
+            Category.SETTINGS.value.toByte() -> {processSettingsCategory(packet)}
+        }
+    }
+
+    private fun processSystemStatusCategory(packet: MutableList<Byte>)
+    {
+        when(packet[PacketByteId.CMD_ID.index])
+        {
+
+        }
+
+    }
+
+    private suspend fun processSensorReadingCategory(packet: MutableList<Byte>)
+    {
+        when(packet[PacketByteId.CMD_ID.index])
+        {
+            SensorReadingsId.PERIODIC_ENV_UPDATES_DATA.value.toByte() -> {unpackEnvMetrics(packet)}
+        }
+    }
+
+    private suspend fun processSettingsCategory(packet: MutableList<Byte>)
+    {
+        when(packet[PacketByteId.CMD_ID.index])
+        {
+            SettingsId.ENV_THRESHOLDS.value.toByte() -> {unpackEnvThresholds(packet)}
+        }
+    }
+
 
     /***************************************************************************************************
      * Unpacks environmental metrics from a received packet and publishes the
@@ -299,8 +335,8 @@ object XDevMessageBroker
     suspend fun unpackEnvMetrics(msg: MutableList<Byte>)
     {
         val tempDataMsg = BrokerMessage.EnvMetricTemp(
-            current = bytesToFloat(msg, 5),
-            high = bytesToFloat(msg, 9),
+            current = bytesToFloat(msg, PacketByteId.PAYLOAD.index),
+            high = bytesToFloat(msg, ),
             low = bytesToFloat(msg, 13)
         )
         _messages.emit(tempDataMsg)

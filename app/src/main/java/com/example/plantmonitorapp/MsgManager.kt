@@ -51,6 +51,21 @@ enum class RecurrentEventParamId(val id: UByte)
 }
 
 
+/*
+* Specifies the meaning of bytes in a packet and
+* their position in the packet. These indexes
+* apply to a packet whose SOP/EOP bytes where removed
+* and unstuffing has been performed on the packet
+* beforehand
+* */
+enum class PacketByteId(val index: Int)
+{
+    MESSAGE_TYPE(0x00),
+    CATEGORY(0x01),
+    CMD_ID(0x02),
+    PAYLOAD_SIZE(0x03),
+    PAYLOAD(0x07)
+}
 
 enum class MessageType(val value: Int) {
     GET(0x01),
@@ -76,6 +91,11 @@ enum class SystemId(val value: Int) {
     CONNECTION_PING(0x00),
     PERIODIC_ENV_UPDATES(0x01),
 
+}
+
+enum class SensorReadingsId(val value: Int)
+{
+    PERIODIC_ENV_UPDATES_DATA(0x01)
 }
 
 
@@ -123,10 +143,8 @@ private fun buildFramedPacket(
  * @param eventId Event identifier, 0-255.
  * @param enable  true to enable periodic updates, false to disable.
  **************************************************************************************************/
-fun ConstructEnablePeriodicEnvUpdates(eventId: Int, enable: Boolean): ByteArray
+fun ConstructEnablePeriodicEnvUpdates(eventId: UByte, enable: Boolean): ByteArray
 {
-    require(eventId in 0..255) { "eventId must be 0-255" }
-
     val payload = byteArrayOf(
         eventId.toByte(),
         (if (enable) 1 else 0).toByte()
@@ -447,59 +465,6 @@ fun ConstructConnectionStatusPing(): ByteArray
         Category.SYSTEM_STATUS,
         SystemId.CONNECTION_PING.value
     )
-}
-
-/***************************************************************************************************
- * Constructs a recurrent event request packet for transmission to a connected
- * device.
- *
- * The request payload contains:
- * - The recurrent event identifier.
- * - The event parameter identifier.
- * - A 32-bit parameter value encoded in little-endian byte order.
- *
- * The payload size is calculated automatically and inserted into the packet
- * header. A checksum is then computed over the complete packet contents
- * (excluding framing bytes) and appended to the packet.
- *
- * Before transmission, the packet is byte-stuffed to escape any
- * protocol-reserved values and is framed with start-of-packet (SOP) and
- * end-of-packet (EOP) markers.
- *
- * @param evntId Identifier of the recurrent event being requested or configured.
- * @param paramId Identifier of the parameter associated with the event.
- * @param value Unsigned 32-bit value to set the event parameter to.
- * @return A byte array containing the fully encoded, checksummed, and framed
- * request packet ready for transmission.
- **************************************************************************************************/
-fun ConstructRecurrentEventRequest(evntId: UByte, paramId: UByte, value: UInt): ByteArray
-{
-    val tmpBuf = mutableListOf<Byte>()
-    val payloadBuf = mutableListOf<Byte>()
-    var checksum: Byte = 0;
-    val stuffedMsg = mutableListOf<Byte>()
-
-    // Packet ID
-    tmpBuf.add(CrossDevicePackets.XDEVMSG_RECURR_EVNT_REQUEST.id.toByte())
-
-    // get size of payload, convert to bytes and push to packet buffer
-    payloadBuf.add(evntId.toByte())
-    payloadBuf.add(paramId.toByte())
-    payloadBuf.addAll(IntToList(value.toInt()))
-    payloadBuf.add(checksum)    // placeholder for real checksum
-    tmpBuf.addAll(IntToList(payloadBuf.size))
-    // remove checksum, add payload to packet buffer, recalculate checksum of packet then append it back
-    payloadBuf.removeAt(payloadBuf.lastIndex)
-    tmpBuf.addAll(payloadBuf)
-    checksum = calcChecksum(tmpBuf.toByteArray(), tmpBuf.size)
-    tmpBuf.add(checksum)
-
-    // stuff packet, then add SOP and EOP
-    stuffedMsg.addAll(stuffPacket(tmpBuf.toByteArray(), tmpBuf.size).toList())
-    stuffedMsg.add(0, SOP) // insert SOP at beginning of list
-    stuffedMsg.add(EOP) // add end of packet identifier
-
-    return stuffedMsg.toByteArray()
 }
 
 /***************************************************************************************************
