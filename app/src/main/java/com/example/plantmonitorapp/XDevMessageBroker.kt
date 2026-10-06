@@ -133,6 +133,8 @@ sealed class BrokerMessage
                                       val minThImp: UShort) : BrokerMessage()
 
     data class DeviceConnectionStatus(val status: DeviceConnectionSts?) : BrokerMessage()
+
+    data class Esp32ConnectToWifiStatus(val status: Boolean) : BrokerMessage()
 }
 
 object XDevMessageBroker
@@ -241,31 +243,11 @@ object XDevMessageBroker
      **************************************************************************************************/
     private suspend fun processIncoming() {
         for (packet in inChannel) {
-            // determine message type
-            when(CrossDevicePackets.fromId(packet[0].toInt()))
-            {
-                CrossDevicePackets.XDEVMSG_CONNECT_STATUS ->
-                {
-                    _messages.emit(BrokerMessage.DeviceConnectionStatus(
-                        DeviceConnectionSts.fromCode(packet[4])
-                    ))
-                }
-                CrossDevicePackets.XDEVMSG_RSP_CONNECT_STS ->
-                {
-
-                }
-
-                CrossDevicePackets.XDEVMSG_RECURR_EVNT_REQUEST -> TODO()
-                CrossDevicePackets.XDEVMSG_ENV_METRICS -> unpackEnvMetrics(packet) //done
-                CrossDevicePackets.XDEVMSG_ENV_THRESHOLDS_REPLY -> unpackEnvThresholds(packet)
-                else -> {}
-            }
-
-
             when(packet[PacketByteId.MESSAGE_TYPE.index])
             {
                 MessageType.RESPONSE.value.toByte(),
                 MessageType.SET_ACK_RESPONSE.value.toByte() -> {processResponseTypes(packet)}
+
                 MessageType.GET.value.toByte() -> Unit
                 MessageType.SET.value.toByte() -> Unit
                 MessageType.SET_ACK.value.toByte() -> Unit
@@ -284,10 +266,19 @@ object XDevMessageBroker
         }
     }
 
-    private fun processSystemStatusCategory(packet: MutableList<Byte>)
+    private suspend fun processSystemStatusCategory(packet: MutableList<Byte>)
     {
         when(packet[PacketByteId.CMD_ID.index])
         {
+            SystemId.CONNECTION_PING.value.toByte() -> {
+                _messages.emit(BrokerMessage.DeviceConnectionStatus(
+                DeviceConnectionSts.fromCode(packet[PacketByteId.PAYLOAD.index])
+            ))}
+
+            SystemId.ESP32_CONNECT_TO_WIFI_ACK.value.toByte() -> {
+
+            }
+
 
         }
 
@@ -336,29 +327,29 @@ object XDevMessageBroker
     {
         val tempDataMsg = BrokerMessage.EnvMetricTemp(
             current = bytesToFloat(msg, PacketByteId.PAYLOAD.index),
-            high = bytesToFloat(msg, ),
-            low = bytesToFloat(msg, 13)
+            high = bytesToFloat(msg, 11),
+            low = bytesToFloat(msg, 15)
         )
         _messages.emit(tempDataMsg)
 
         val humDataMsg = BrokerMessage.EnvMetricHum(
-            current = bytesToFloat(msg, 17),
-            high = bytesToFloat(msg, 21),
-            low = bytesToFloat(msg, 25)
+            current = bytesToFloat(msg, 19),
+            high = bytesToFloat(msg, 23),
+            low = bytesToFloat(msg, 27)
         )
         _messages.emit(humDataMsg)
 
         val soilM1Msg = BrokerMessage.EnvMetricSoilM1(
-            current = bytesToUshort(msg, 29),
-            high =  bytesToUshort(msg, 31),
-            low = bytesToUshort(msg, 33)
+            current = bytesToUshort(msg, 31),
+            high =  bytesToUshort(msg, 33),
+            low = bytesToUshort(msg, 35)
         )
         _messages.emit(soilM1Msg)
 
         val soilM2Msg = BrokerMessage.EnvMetricSoilM2(
-            current = bytesToUshort(msg, 35),
-            high =  bytesToUshort(msg, 37),
-            low = bytesToUshort(msg, 39)
+            current = bytesToUshort(msg, 37),
+            high =  bytesToUshort(msg, 39),
+            low = bytesToUshort(msg, 41)
         )
         _messages.emit(soilM2Msg)
     }
@@ -395,31 +386,31 @@ object XDevMessageBroker
     suspend fun unpackEnvThresholds(msg: MutableList<Byte>)
     {
         val tempThresholds = BrokerMessage.EnvThresholdsTemp(
-            maxThAct = bytesToFloat(msg, 5),
-            maxThImp = bytesToFloat(msg, 9),
-            minThAct = bytesToFloat(msg, 13),
-            minThImp = bytesToFloat(msg, 17))
+            maxThAct = bytesToFloat(msg, PacketByteId.PAYLOAD.index),
+            maxThImp = bytesToFloat(msg, 11),
+            minThAct = bytesToFloat(msg, 15),
+            minThImp = bytesToFloat(msg, 19))
         _messages.emit(tempThresholds)
 
         val humThresholds = BrokerMessage.EnvThresholdsHum(
-            maxThAct = bytesToFloat(msg, 21),
-            maxThImp = bytesToFloat(msg, 25),
-            minThAct = bytesToFloat(msg, 29),
-            minThImp = bytesToFloat(msg, 33))
+            maxThAct = bytesToFloat(msg, 23),
+            maxThImp = bytesToFloat(msg, 27),
+            minThAct = bytesToFloat(msg, 31),
+            minThImp = bytesToFloat(msg, 35))
         _messages.emit(humThresholds)
 
         val soilMoisture1Thresholds = BrokerMessage.EnvThresholdsMoisture1(
-            maxThAct = bytesToUshort(msg, 37),
-            maxThImp = bytesToUshort(msg, 41),
-            minThAct = bytesToUshort(msg, 45),
-            minThImp = bytesToUshort(msg, 49))
+            maxThAct = bytesToUshort(msg, 39),
+            maxThImp = bytesToUshort(msg, 43),
+            minThAct = bytesToUshort(msg, 47),
+            minThImp = bytesToUshort(msg, 51))
         _messages.emit(soilMoisture1Thresholds)
 
         val soilMoisture2Thresholds = BrokerMessage.EnvThresholdsMoisture2(
-            maxThAct = bytesToUshort(msg, 53),
-            maxThImp = bytesToUshort(msg, 57),
-            minThAct = bytesToUshort(msg, 61),
-            minThImp = bytesToUshort(msg, 65))
+            maxThAct = bytesToUshort(msg, 55),
+            maxThImp = bytesToUshort(msg, 59),
+            minThAct = bytesToUshort(msg, 63),
+            minThImp = bytesToUshort(msg, 67))
         _messages.emit(soilMoisture2Thresholds)
     }
 
