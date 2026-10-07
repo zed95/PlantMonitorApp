@@ -19,14 +19,10 @@ class ConnectionViewModel(): ViewModel()
     private val _navigateToDashboard = Channel<Unit>(Channel.BUFFERED)
     val navigateToDashboard = _navigateToDashboard.receiveAsFlow()
 
-    private var brokerCollectJob: Job? = null
-
-    private var connectionJob: Job? = null
+    private var brokerCollectJob: Job? = null  // store coroutine handle
 
     fun deviceConnect(device: NsdServiceInfo) = viewModelScope.launch()
     {
-        connectionJob?.cancel()
-
         if(!SocketManager.isConnectionActive())
         {
             _connectionSts.value = DeviceConnectionSts.CONNECTING

@@ -236,8 +236,9 @@ fun SetupNewDevice(viewModel: BluetoothViewModel,
                     onDismissRequest = { displayConfirmationPrompt = false},
                     onConfirmation =
                         {
-                        setupState = DeviceSetupState.Idle
-                        displayConfirmationPrompt = false
+                            viewModel.closeCommsChannels()
+                            setupState = DeviceSetupState.Idle
+                            displayConfirmationPrompt = false
                         },
                     dialogTitle = "Confirm Action",
                     dialogText = "Are you sure you want to end the setup process? You will have to start again.",
@@ -259,14 +260,18 @@ fun SetupNewDevice(viewModel: BluetoothViewModel,
         }
         DeviceSetupState.RemoteDevWifiConnectSuccess ->
         {
-            InfoDialog(onConfirmation = {setupState = DeviceSetupState.Idle},
+            InfoDialog(onConfirmation =
+                { viewModel.closeCommsChannels()
+                setupState = DeviceSetupState.Idle },
                 dialogTitle = "Device Connected",
                 dialogText = "Device successfully connected to the WiFi network.",
                 icon = Icons.Default.CheckCircle)
         }
         DeviceSetupState.LostConnectionWithBleDevice ->
         {
-            InfoDialog(onConfirmation = {setupState = DeviceSetupState.Idle},
+            InfoDialog(onConfirmation = {
+                viewModel.closeCommsChannels()
+                setupState = DeviceSetupState.Idle},
                 dialogTitle = "Connection Lost",
                 dialogText = "Lost bluetooth connection to the device. Retry pairing with the device again.",
                 icon = Icons.Default.Error)

@@ -276,10 +276,15 @@ object XDevMessageBroker
             ))}
 
             SystemId.ESP32_CONNECT_TO_WIFI_ACK.value.toByte() -> {
-
+                if(packet[PacketByteId.PAYLOAD.index] == 1.toByte())
+                {
+                    _messages.emit(BrokerMessage.Esp32ConnectToWifiStatus(true))
+                }
+                else
+                {
+                    _messages.emit(BrokerMessage.Esp32ConnectToWifiStatus(false))
+                }
             }
-
-
         }
 
     }

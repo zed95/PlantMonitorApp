@@ -28,6 +28,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.job
@@ -514,11 +515,12 @@ sealed class BluetoothEvent {
     object LostConnectionWithBleDevice : BluetoothEvent()
 }
 
-class BluetoothViewModel(context: Context) : ViewModel() {
-
+class BluetoothViewModel(context: Context) : ViewModel()
+{
     private val btManager = AppBluetoothManager(context)
     private val _events = MutableSharedFlow<BluetoothEvent>()
     val events = _events.asSharedFlow()
+    private var brokerCollectJob: Job? = null  // store coroutine handle
 
     /***********************************************************************************************
      * Starts the Bluetooth pairing and connection flow.
@@ -555,6 +557,8 @@ class BluetoothViewModel(context: Context) : ViewModel() {
                         BondingStatus.SUCCESS ->
                         {
                             _events.emit(BluetoothEvent.ConnectionSuccess)
+                            // open message broker channels to process external messages
+                            openCommsChannels()
                         }
                     }
                 }
@@ -648,9 +652,27 @@ class BluetoothViewModel(context: Context) : ViewModel() {
                 {
                     _events.emit(BluetoothEvent.LostConnectionWithBleDevice)
                 }
-
             }
         }
+    }
+
+    fun openCommsChannels() = viewModelScope.launch {
+        if (brokerCollectJob?.isActive == true) return@launch
+        XDevMessageBroker.initChannels()
+        brokerCollectJob = viewModelScope.launch {
+            XDevMessageBroker.messages.collect { msg ->
+                when (msg) {
+                    is BrokerMessage.Esp32ConnectToWifiStatus -> processConnectionStatusUpdate(msg.status)
+                    else -> Unit
+                }
+            }
+        }
+    }
+
+    fun closeCommsChannels() = viewModelScope.launch {
+        brokerCollectJob?.cancel()
+        brokerCollectJob = null
+        XDevMessageBroker.closeChannels()
     }
 }
 
