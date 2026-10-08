@@ -380,7 +380,7 @@ class AppBluetoothManager(val context: Context)
         {
             // remove SOP and EOP and update size index
             RemSopEop(buffer)
-            packetLen = packetLen - 2
+            packetLen -= 2
             // unstuff packet and assign unstuffed packet length to packetLen
             packetLen = unstuffPacket(buffer, packetLen)
 
@@ -389,17 +389,7 @@ class AppBluetoothManager(val context: Context)
             {
                 if(calcChecksum(buffer, packetLen) == 0.toByte())
                 {
-                    if(buffer[0] == XDEVMSG_RSP_ESP32_WIFI_STS)
-                    {
-                        if(buffer[5] == 7.toByte())
-                        {
-                            bleReadSignal.complete(true)
-                        }
-                        else
-                        {
-                            bleReadSignal.complete(false)
-                        }
-                    }
+                    XDevMessageBroker.inChannel.trySend(buffer.copyOfRange(0, packetLen).toMutableList())
                 }
             }
         }
@@ -662,7 +652,9 @@ class BluetoothViewModel(context: Context) : ViewModel()
         brokerCollectJob = viewModelScope.launch {
             XDevMessageBroker.messages.collect { msg ->
                 when (msg) {
-                    is BrokerMessage.Esp32ConnectToWifiStatus -> processConnectionStatusUpdate(msg.status)
+                    is BrokerMessage.Esp32ConnectToWifiStatus -> {
+                        btManager.bleReadSignal.complete(msg.status)
+                    }
                     else -> Unit
                 }
             }

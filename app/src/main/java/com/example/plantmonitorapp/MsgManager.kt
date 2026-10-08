@@ -90,7 +90,6 @@ enum class SettingsId(val value: Int) {
 enum class SystemId(val value: Int) {
     CONNECTION_PING(0x00),
     PERIODIC_ENV_UPDATES(0x01),
-
     ESP32_CONNECT_TO_WIFI_ACK(0x02)
 
 }

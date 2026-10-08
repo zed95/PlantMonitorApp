@@ -286,7 +286,6 @@ object XDevMessageBroker
                 }
             }
         }
-
     }
 
     private suspend fun processSensorReadingCategory(packet: MutableList<Byte>)
