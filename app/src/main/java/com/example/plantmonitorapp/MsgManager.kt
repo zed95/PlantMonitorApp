@@ -68,11 +68,11 @@ enum class PacketByteId(val index: Int)
 }
 
 enum class MessageType(val value: Int) {
-    GET(0x01),
-    SET(0x02),
-    SET_ACK(0x03),
-    RESPONSE(0x04),
-    SET_ACK_RESPONSE(0x05)
+    GET(0x00),
+    SET(0x01),
+    SET_ACK(0x02),
+    RESPONSE(0x03),
+    SET_ACK_RESPONSE(0x04)
 }
 
 enum class Category(val value: Int) {
@@ -160,61 +160,38 @@ fun ConstructEnablePeriodicEnvUpdates(eventId: UByte, enable: Boolean): ByteArra
 }
 
 /***************************************************************************************************
- * Constructs a packet requesting that an ESP32 connect to a Wi-Fi network.
+ * Constructs a request for the ESP32 to connect to a Wi-Fi network.
  *
- * The packet payload contains:
- * - The SSID length as a 32-bit integer.
- * - The password length as a 32-bit integer.
- * - The SSID string bytes.
- * - The password string bytes.
+ * SET_ACK (0x03), System/Status (0x00), ID 0x02. The device replies with a SET_ACK_RESPONSE
+ * carrying a 1 byte status (1 = connected).
  *
- * The payload size is calculated automatically and encoded in the packet
- * header. A checksum is then computed over the packet header and payload and
- * appended to the packet.
+ * Payload:
+ *   [SSID size 4][Password size 4][SSID bytes][Password bytes]
  *
- * Before transmission, the packet is byte-stuffed to escape any
- * protocol-reserved values and is framed with start-of-packet (SOP) and
- * end-of-packet (EOP) markers.
+ * Sizes are unsigned 32-bit little endian values. The payload size in the packet header and the
+ * checksum are handled by buildFramedPacket().
  *
- * Note: The SSID and password are encoded using the platform's default
- * character set via `String.toByteArray()`.
- *
- * @param ssid The Wi-Fi network SSID to connect to.
- * @param password The password associated with the specified SSID.
- * @return A byte array containing the fully encoded, checksummed, stuffed,
- * and framed Wi-Fi connection request packet.
+ * @param ssid     The Wi-Fi network SSID to connect to.
+ * @param password The password for that network.
  **************************************************************************************************/
 fun msgConnectEsp32ToWifi(ssid: String, password: String): ByteArray
 {
-    val msg = mutableListOf<Byte>()
-    val stuffedMsg = mutableListOf<Byte>()
-    val numSsidLenBytes = Int.SIZE_BYTES
-    val nunPasswordLenBytes = Int.SIZE_BYTES
-    val numChecksumLenBytes = Byte.SIZE_BYTES
-    val payloadSize = ssid.length + password.length + numSsidLenBytes + nunPasswordLenBytes + numChecksumLenBytes
-    // converts the ssid length to byte buffer holding 4 bytes that make up ssid length, then to a byte array and finally to a list of bytes
-    val ssidSizeBytes = IntToList(ssid.length)
-    val passwordSizeBytes = IntToList(password.length)
-    val payloadSizeBytes = IntToList(payloadSize)
-    var checksum: Byte = 0
+    // sizes come from the encoded bytes, not String.length, so non-ASCII characters count correctly
+    val ssidBytes = ssid.toByteArray(Charsets.UTF_8)
+    val passwordBytes = password.toByteArray(Charsets.UTF_8)
 
-    msg.add(XDVEMSG_WIFI_CONNECT)
-    msg.addAll(payloadSizeBytes)
-    msg.addAll(ssidSizeBytes)
-    msg.addAll(passwordSizeBytes)
-    msg.addAll(ssid.toByteArray().toList())
-    msg.addAll(password.toByteArray().toList())
-    // get checksum for header and payload bytes and add to packet
-    checksum = calcChecksum(msg.toByteArray(), msg.size)
-    msg.add(checksum)
+    val payload = mutableListOf<Byte>()
+    payload.addAll(IntToList(ssidBytes.size))
+    payload.addAll(IntToList(passwordBytes.size))
+    payload.addAll(ssidBytes.toList())
+    payload.addAll(passwordBytes.toList())
 
-    // stuff ID, Payload, Checksum
-    stuffedMsg.addAll(stuffPacket(msg.toByteArray(), msg.size).toList())
-    // add SOP and EOP
-    stuffedMsg.add(0, SOP) // insert SOP at beginning of list
-    stuffedMsg.add(EOP) // add end of packet identifier
-
-    return stuffedMsg.toByteArray()
+    return buildFramedPacket(
+        MessageType.SET_ACK,
+        Category.SYSTEM_STATUS,
+        SystemId.ESP32_CONNECT_TO_WIFI_ACK.value,
+        payload.toByteArray()
+    )
 }
 
 /*
